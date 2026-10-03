@@ -1,0 +1,8 @@
+# Generated and input data stays out of version control; the folder tree is kept.
+data/*
+!data/**/
+!data/**/.gitkeep
+# MATLAB
+*.asv
+*.autosave
+slprj/
