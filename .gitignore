@@ -1,8 +1,43 @@
+# ---------- MATLAB (matlab/) ----------
 # Generated and input data stays out of version control; the folder tree is kept.
-data/*
-!data/**/
-!data/**/.gitkeep
-# MATLAB
+matlab/data/*
+!matlab/data/**/
+!matlab/data/**/.gitkeep
+# Golden-model vectors are the contract with the Verilog testbenches: keep them.
+# (They are force-tracked; see README.)
 *.asv
 *.autosave
 slprj/
+
+# ---------- STM32CubeIDE (stm32/) ----------
+stm32/**/Debug/
+stm32/**/Release/
+*.o
+*.d
+*.su
+*.cyclo
+*.elf
+*.map
+*.list
+*.launch
+stm32/**/.metadata/
+
+# ---------- Vivado (fpga/) ----------
+# The project is rebuilt from fpga/scripts/create_project.tcl into fpga/vivado/
+fpga/vivado/
+*.jou
+*.log
+*.str
+.Xil/
+*.cache/
+*.hw/
+*.runs/
+*.sim/
+*.ip_user_files/
+*.gen/
+*.wdb
+*.bit
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
