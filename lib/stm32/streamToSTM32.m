@@ -1,25 +1,20 @@
-function streamToSTM32(compositePath, fs, sampleBits, comPort, baudRate, chunkSamples, streamSeconds)
-% streamToSTM32  Stream the quantized composite signal to the STM32 over
+function streamToSTM32(streamPath, fs, comPort, baudRate, chunkSamples, streamSeconds)
+% streamToSTM32  Stream the int16 composite stream file to the STM32 over
 %                 serial, continuously and paced in real time.
 %
-%   streamToSTM32(compositePath, fs, sampleBits, comPort, baudRate, chunkSamples, streamSeconds)
+%   streamToSTM32(streamPath, fs, comPort, baudRate, chunkSamples, streamSeconds)
 %
-%   compositePath   - path to composite.wav
-%   fs              - expected sample rate (Hz)
-%   sampleBits      - quantization bit width (e.g. 16)
+%   streamPath      - int16 stream file written by stage 03 (cfg.streamFile)
+%   fs              - sample rate (Hz), used for real-time pacing
 %   comPort         - serial port name, e.g. 'COM3'
 %   baudRate        - serial baud rate (e.g. 3000000)
 %   chunkSamples    - samples per write, matched to the STM32 ring buffer size
 %   streamSeconds   - how many seconds to stream (use Inf for the whole file)
+%
+%   The samples are sent exactly as stored: the file is already headroom-scaled and
+%   quantized, so what the STM32 receives is what the golden model sees.
 
-    [composite, fsIn] = audioread(compositePath);
-    if fsIn ~= fs
-        error('Composite sample rate (%d) does not match expected fs (%d)', fsIn, fs);
-    end
-
-    fullScale = 2^(sampleBits - 1) - 1;
-    clipped   = max(min(composite, 1), -1);
-    quantized = int16(round(clipped * fullScale));
+    quantized = readStreamFile(streamPath);
 
     numSamplesToSend = min(round(streamSeconds * fs), length(quantized));
     quantized = quantized(1:numSamplesToSend);

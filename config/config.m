@@ -57,6 +57,7 @@ function cfg = config()
 
     % --- Quantization of streamed audio ---
     cfg.sampleBits = 16;   % fixed-point word width for streamed audio samples
+    cfg.streamFile = 'composite_int16.bin';   % headroom-scaled int16 stream, in cfg.compDir
 
     % --- STM32 streaming ---
     cfg.comPort       = 'COM4';       % <-- CHANGE to your STM32's actual serial port
@@ -74,8 +75,8 @@ function cfg = config()
     cfg.run.coefficients  = true;
     cfg.run.audioPrep     = true;
     cfg.run.goldenModel   = true;
-    cfg.run.stm32Selftest = false;   % needs the STM32 connected
-    cfg.run.hwDemo        = false;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
+    cfg.run.stm32Selftest = true;   % needs the STM32 connected
+    cfg.run.hwDemo        = true;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
     cfg.run.analysis      = false;   % placeholder stage
     cfg.run.visualize     = false;
     cfg.run.ppaReport     = false;   % placeholder stage
