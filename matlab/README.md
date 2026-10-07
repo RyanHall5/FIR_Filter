@@ -56,11 +56,12 @@ from matlab/ does the same job for the current session.
 | 03 audio prep | `data/audio/source` | `data/audio/normalized`, `data/audio/composite` |
 | 04 golden model | 02 coefficients | `data/vectors/` |
 | 05 selftest | config | console output |
-| 06 hw demo | `data/audio/composite` | (captures, once implemented) |
+| 06 hw demo | `data/audio/composite` | `data/captures/hw_capture.mat` |
+| 07 analysis | `data/captures` | console report (latency, bit-exact check) |
 | 08 visualize | audio and coefficient files | figures |
 
 Stages 05 and 06 need the STM32 connected and default to off in `cfg.run`.
-Stages 07 and 09 are placeholders.
+Stage 06 captures the returned stream to `data/captures/`; stage 07 aligns it and checks it against what was sent (golden-FIR comparison and the rest of the analysis are still placeholders). Stage 09 is a placeholder.
 
 ## Rules for adding code
 

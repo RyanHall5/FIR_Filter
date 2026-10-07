@@ -64,6 +64,9 @@ function cfg = config()
     cfg.baudRate      = 2250000;      % baud
     cfg.chunkSamples  = 512;          % matches STM32's double-buffered ring buffer size
     cfg.streamSeconds = 5;            % seconds to stream for this test (use Inf for full song)
+    cfg.drainSeconds  = 2;            % keep reading this long after the last chunk is sent
+    cfg.captureFile   = 'hw_capture.mat';   % stage 06 output (in cfg.captureDir), stage 07 input
+    cfg.maxLag        = 4096;         % largest latency alignLatency searches (samples)
 
     % --- Stage 05: STM32 self-test ---
     cfg.selftest.mode      = 'loopback';   % 'send' or 'loopback'
