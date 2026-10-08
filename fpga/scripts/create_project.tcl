@@ -19,22 +19,40 @@ create_project -force FIR_Filter $proj_dir -part xc7a35tcpg236-1
 catch { set_property board_part digilentinc.com:basys3:part0:1.2 [current_project] }
 set_property target_language Verilog [current_project]
 
-# Design sources
+# Design sources (RTL + the coefficient hex files the ROM reads)
 add_files -fileset sources_1 [list \
     [file join $fpga_dir rtl top.v] \
-    [file join $fpga_dir rtl spi_slave.v] ]
+    [file join $fpga_dir rtl spi_slave.v] \
+    [file join $fpga_dir rtl coef_rom.v] \
+    [file join $vec_dir coef_ch1.hex] \
+    [file join $vec_dir coef_ch2.hex] \
+    [file join $vec_dir coef_ch3.hex] ]
 set_property top top [get_filesets sources_1]
+
+# Vivado doesn't recognize .hex, so mark the coefficient files as data files
+foreach ch {1 2 3} {
+    set_property file_type {Data Files} [get_files [file join $vec_dir coef_ch$ch.hex]]
+}
 
 # Constraints
 add_files -fileset constrs_1 [file join $fpga_dir constraints basys3.xdc]
 
-# Simulation sources
+# Simulation set 1: spi_slave
 add_files -fileset sim_1 [file join $fpga_dir tb spi_slave_tb.v]
 set_property top spi_slave_tb [get_filesets sim_1]
 set_property top_lib xil_defaultlib [get_filesets sim_1]
 
-# Golden-model vectors live in ../matlab/data/vectors (path from fpga/: ../matlab/data/vectors).
-# Testbenches that use $readmemh should reference that location.
+# Simulation set 2: coef_rom (its own set so the tops don't fight)
+create_fileset -simset sim_coef_rom
+add_files -fileset sim_coef_rom [file join $fpga_dir tb coef_rom_tb.v]
+set_property top coef_rom_tb [get_filesets sim_coef_rom]
+set_property top_lib xil_defaultlib [get_filesets sim_coef_rom]
+
+# Later: create_fileset -simset sim_fir_core, add tb_fir_core.v plus the in_*/exp_* hex
+# files from $vec_dir to that set only (and mark them Data Files the same way).
+
+# Which set "Run Simulation" uses (change this line to switch)
+current_fileset -simset [get_filesets sim_coef_rom]
 
 update_compile_order -fileset sources_1
 puts "Project created in $proj_dir"

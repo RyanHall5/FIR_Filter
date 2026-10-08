@@ -48,7 +48,7 @@ function cfg = config()
 
     % --- Stage 02: final fixed-point design ---
     cfg.fixedPoint.asTarget = 60;     % which stopband-target row of the tap study to use (dB)
-    cfg.fixedPoint.coefBits = 14;     % coefficient width (try 16 to reach the full 60 dB)
+    cfg.fixedPoint.coefBits = 16;     % coefficient width (try 16 to reach the full 60 dB)
 
     % --- Stage 04: golden model test signals ---
     cfg.golden.sigLength   = 8192;    % samples in the long test signals
@@ -78,8 +78,8 @@ function cfg = config()
     cfg.run.coefficients  = true;
     cfg.run.audioPrep     = true;
     cfg.run.goldenModel   = true;
-    cfg.run.stm32Selftest = true;   % needs the STM32 connected
-    cfg.run.hwDemo        = true;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
+    cfg.run.stm32Selftest = false;   % needs the STM32 connected
+    cfg.run.hwDemo        = false;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
     cfg.run.analysis      = false;   % placeholder stage
     cfg.run.visualize     = false;
     cfg.run.ppaReport     = false;   % placeholder stage
