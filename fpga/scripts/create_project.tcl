@@ -24,6 +24,7 @@ add_files -fileset sources_1 [list \
     [file join $fpga_dir rtl top.v] \
     [file join $fpga_dir rtl spi_slave.v] \
     [file join $fpga_dir rtl coef_rom.v] \
+    [file join $fpga_dir rtl sample_buffer.v] \
     [file join $vec_dir coef_ch1.hex] \
     [file join $vec_dir coef_ch2.hex] \
     [file join $vec_dir coef_ch3.hex] ]
@@ -48,11 +49,17 @@ add_files -fileset sim_coef_rom [file join $fpga_dir tb coef_rom_tb.v]
 set_property top coef_rom_tb [get_filesets sim_coef_rom]
 set_property top_lib xil_defaultlib [get_filesets sim_coef_rom]
 
+# Simulation set 3: sample_buffer (no hex files needed; it ends itself with $finish, use Run All)
+create_fileset -simset sim_sample_buffer
+add_files -fileset sim_sample_buffer [file join $fpga_dir tb sample_buffer_tb.v]
+set_property top sample_buffer_tb [get_filesets sim_sample_buffer]
+set_property top_lib xil_defaultlib [get_filesets sim_sample_buffer]
+
 # Later: create_fileset -simset sim_fir_core, add tb_fir_core.v plus the in_*/exp_* hex
 # files from $vec_dir to that set only (and mark them Data Files the same way).
 
 # Which set "Run Simulation" uses (change this line to switch)
-current_fileset -simset [get_filesets sim_coef_rom]
+current_fileset -simset [get_filesets sim_sample_buffer]
 
 update_compile_order -fileset sources_1
 puts "Project created in $proj_dir"
