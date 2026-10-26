@@ -15,8 +15,9 @@
 %
 % How the comparison lines up: each test is sent behind cfg.hw.flushSamples zeros (so the
 % filter history left by the previous test is flushed, and the golden model's all-zero
-% starting history holds), and the word returned in slot m is the filter output for the
-% sample sent in slot m - cfg.hw.expectedLag. So the output for the k-th test sample
+% starting history holds), and one chunk of zeros follows it, because the last
+% cfg.hw.expectedLag outputs only come back while later words are being sent. The word
+% returned in slot m is the filter output for the sample sent in slot m - cfg.hw.expectedLag. So the output for the k-th test sample
 % is rx(flushSamples + expectedLag + k).
 
 cfg = config();
@@ -42,7 +43,7 @@ for it = 1:numel(names)
     streamFile = fullfile(cfg.captureDir, sprintf('vec_%s.bin', name));
     fid = fopen(streamFile, 'w', 'ieee-le');
     assert(fid > 0, 'Cannot open %s for writing.', streamFile);
-    fwrite(fid, int16([zeros(P, 1); x]), 'int16');
+    fwrite(fid, int16([zeros(P, 1); x; zeros(cfg.chunkSamples, 1)]), 'int16');   % trailing zeros let the last outputs come back
     fclose(fid);
 
     fprintf('\n--- %s (%d samples) ---\n', name, numel(x));
