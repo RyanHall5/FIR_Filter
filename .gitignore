@@ -41,3 +41,4 @@ fpga/vivado/
 # ---------- OS ----------
 .DS_Store
 Thumbs.db
+/.metadata/

@@ -45,8 +45,8 @@
  */
 #define RELAY_ENABLE_SPI      1
 #define RELAY_ENABLE_UART_TX  1
-#define RELAY_RAMP_CHECK      1   /* verify incoming samples are 0,1,2,... (test_stm32.m) */
-#define RELAY_LOOPBACK_CHECK  1   /* verify MISO data == MOSI data (MOSI jumpered to MISO) */
+#define RELAY_RAMP_CHECK      0   /* verify incoming samples are 0,1,2,... (test_stm32.m) */
+#define RELAY_LOOPBACK_CHECK  0   /* verify MISO data == MOSI data (MOSI jumpered to MISO) */
 
 #define RELAY_DEBUG_PRINT     1   /* 1 = event log + ITM printf, 0 = compile all of it out */
 

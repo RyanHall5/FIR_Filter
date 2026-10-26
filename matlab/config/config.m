@@ -12,7 +12,7 @@ function cfg = config()
     cfg.root = root;
 
     % --- Songs ---
-    cfg.songs = {'song1', 'song2', 'song3'};
+    cfg.songs = {'DieWithSmile', 'Jealous', 'Umbrella'};
 
     % --- Folders (absolute paths, anchored at the project root) ---
     cfg.dataDir    = fullfile(root, 'data');
@@ -63,13 +63,13 @@ function cfg = config()
     cfg.comPort       = 'COM4';       % <-- CHANGE to your STM32's actual serial port
     cfg.baudRate      = 2250000;      % baud
     cfg.chunkSamples  = 512;          % matches STM32's double-buffered ring buffer size
-    cfg.streamSeconds = 5;            % seconds to stream for this test (use Inf for full song)
+    cfg.streamSeconds = 20;            % seconds to stream for this test (use Inf for full song)
     cfg.drainSeconds  = 2;            % keep reading this long after the last chunk is sent
     cfg.captureFile   = 'hw_capture.mat';   % stage 06 output (in cfg.captureDir), stage 07 input
     cfg.maxLag        = 4096;         % largest latency alignLatency searches (samples)
 
     % --- Stage 06/07: hardware demo (Basys 3 running top.v) ---
-    cfg.hw.channel      = 1;        % channel the Basys 3 switches are set to: sw[1:0] = 01, 10, 11 for ch 1, 2, 3
+    cfg.hw.channel      = 3;        % channel the Basys 3 switches are set to: sw[1:0] = 01, 10, 11 for ch 1, 2, 3
     cfg.hw.expectedLag  = 2;        % samples the returned stream trails the sent stream (top.v tx_hold design)
     cfg.hw.flushSamples = 512;      % zeros sent ahead of each vector test to flush the filter history (multiple of chunkSamples)
     cfg.hw.vectorTests  = {'impulse', 'step', 'composite'};   % in_<name>.hex vectors sent by the vector test
@@ -81,14 +81,14 @@ function cfg = config()
     cfg.selftest.showPlot  = true;
 
     % --- Which stages run_all executes ---
-    cfg.run.tapStudy      = true;
-    cfg.run.coefficients  = true;
-    cfg.run.audioPrep     = true;
-    cfg.run.goldenModel   = true;
+    cfg.run.tapStudy      = false;
+    cfg.run.coefficients  = false;
+    cfg.run.audioPrep     = false;
+    cfg.run.goldenModel   = false;
     cfg.run.stm32Selftest = false;   % needs the STM32 connected
-    cfg.run.hwDemo        = false;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
+    cfg.run.hwDemo        = true;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
     cfg.run.hwVectorTest  = false;   % needs the STM32 and FPGA connected; bit-exact test with the golden vectors
-    cfg.run.analysis      = false;   % placeholder stage
+    cfg.run.analysis      = true;   % placeholder stage
     cfg.run.visualize     = false;
     cfg.run.ppaReport     = false;   % placeholder stage
 end
