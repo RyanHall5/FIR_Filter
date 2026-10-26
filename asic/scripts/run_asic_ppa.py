@@ -124,7 +124,7 @@ def collect(design, periods=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--design", default="serial_mac")
-    ap.add_argument("--periods", nargs="+", default=["30", "25", "20", "15"])
+    ap.add_argument("--periods", nargs="+", default=["40", "30", "25", "20"])
     ap.add_argument("--collect-only", action="store_true")
     ap.add_argument("extra", nargs="*", help="extra args passed to librelane (after --)")
     a = ap.parse_args()

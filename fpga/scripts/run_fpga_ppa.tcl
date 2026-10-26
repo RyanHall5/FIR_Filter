@@ -50,7 +50,7 @@ set part       xc7a35tcpg236-1
 set archs [dict create \
     serial_mac [dict create top FIR_Core_MAC files {FIR_Core_MAC.v coef_rom.v sample_buffer.v}] ]
 set variants {dsp nodsp}
-set periods  {10.0 8.0 6.0 5.0}      ;# target clock periods in ns
+set periods  {40.0 30.0 25.0 20.0 10.0 8.0 6.0 5.0}      ;# target clock periods in ns
 set jobs     4                        ;# parallel jobs for synthesis and implementation
 set keep_projects 0                   ;# 1 keeps the scratch projects
 set rerun_all     0                   ;# 0 skips runs that already have a summary.csv (so a second
