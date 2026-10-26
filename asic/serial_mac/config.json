@@ -1,0 +1,14 @@
+{
+  "DESIGN_NAME": "FIR_Core_MAC",
+  "VERILOG_FILES": [
+    "dir::../../fpga/rtl/FIR_Core_MAC.v",
+    "dir::../../fpga/rtl/sample_buffer.v",
+    "dir::../rtl/coef_rom.v"
+  ],
+  "CLOCK_PORT": "clk",
+  "CLOCK_PERIOD": 20.0,
+  "FP_SIZING": "relative",
+  "FP_CORE_UTIL": 40,
+  "PL_TARGET_DENSITY_PCT": 50,
+  "RUN_LINT": false
+}
