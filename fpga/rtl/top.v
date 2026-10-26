@@ -2,24 +2,29 @@
 // Company : Rochester Institute of Technology (RIT )
 // Engineer : Ryan Hall (rah3587@rit.edu)
 //
-// Create Date : 10/2/26
+// Create Date : 10/26/26
 // Design Name : top
 // Module Name : top - structural
 // Project Name : FIR_Filter
 // Target Devices : Basys3
 //
-// AI note     : Comments and code organization were written by Claude.
+// AI note     : Comments and code organization were written by Claude. The tx_hold
+//               register (return-path timing fix) was added by Claude after burst-mode
+//               simulation showed a dropped and a duplicated sample at each burst boundary.
 //
 // Description : board-level wrapper; connects spi_slave to the FIR core and Basys3 pins
 //
 // Data flow   : STM32 --SPI--> spi_slave --word--> FIR_Core_MAC --result--> spi_slave --SPI--> STM32
 //
-// Return path : fir_out is held in result_reg and offered to spi_slave as tx_word. The
-//               filter needs 64 clocks per sample, far less than one SPI word, but the
-//               word sent back in a slot is snapshotted at the slot start, so the result
-//               for the sample received in slot n is returned in slot n+1. MATLAB must
-//               shift the returned stream by one sample (and send one extra dummy frame
-//               to flush the last result).
+// Return path : The filter result is held in result_reg, and copied into tx_hold each time
+//               a new input word arrives (word_valid). tx_hold is what spi_slave sends as
+//               tx_word. Because the filter takes 64 clocks, much less than one SPI word,
+//               the word returned in slot m is always the filter output for sample m-2,
+//               whether the STM32 sends words back to back in one long burst or in
+//               separate frames. Without tx_hold the first word of every burst repeated
+//               the previous result and skipped one. MATLAB must shift the returned stream
+//               by 2 samples (alignLatency finds this) and send two extra dummy samples to
+//               flush the last results.
 //
 // Controls    : sw[1:0] selects the filter channel (01, 10, 11 = ch1..3; 00 = zero output)
 //               btnC resets the design
@@ -111,6 +116,7 @@ module top (
     //====================================================
     // Holds the latest filter output so MISO data is stable between results
     reg [15:0] result_reg;
+    reg [15:0] tx_hold;          // result_reg frozen at each new input word: the word to send back
 
     // result_reg process
     always @(posedge clk) begin
@@ -120,7 +126,16 @@ module top (
             result_reg <= fir_out;
     end
 
-    assign result_reg_w = result_reg;
+    // tx_hold process: refreshed once per input word, so the value spi_slave snapshots
+    // is always the result for the sample two words back, and never changes mid-word
+    always @(posedge clk) begin
+        if (rst)
+            tx_hold <= 16'h0000;
+        else if (word_valid)
+            tx_hold <= result_reg;
+    end
+
+    assign result_reg_w = tx_hold;
 
     //====================================================
     // Debug LEDs
