@@ -30,7 +30,16 @@ METRICS = {
     "hold_ws_ns":     ["timing__hold__ws"],
     "setup_viol":     ["timing__setup_vio__count"],
     "hold_viol":      ["timing__hold_vio__count"],
-    "cell_area_um2":  ["design__instance__area", "design__instance__area__stdcell"],
+    # design__instance__area also counts filler cells (about 45% of it), so use the stdcell value
+    # (logic + flops + repair buffers + tap cells). Class rows break it down for the poster.
+    "cell_area_um2":  ["design__instance__area__stdcell"],
+    "seq_area_um2":   ["design__instance__area__class:sequential_cell"],
+    "comb_area_um2":  ["design__instance__area__class:multi_input_combinational_cell"],
+    "repair_buf_area_um2": ["design__instance__area__class:timing_repair_buffer"],
+    "clock_tree_area_um2": ["design__instance__area__class:clock_buffer"],
+    "tap_area_um2":   ["design__instance__area__class:tap_cell"],
+    "fill_area_um2":  ["design__instance__area__class:fill_cell"],
+    "core_area_um2":  ["design__core__area"],
     "instances":      ["design__instance__count", "design__instance__count__stdcell"],
     "flops":          ["design__instance__count__class:sequential_cell"],
     "die_area_um2":   ["design__die__area"],
@@ -65,9 +74,20 @@ def run_one(design, period, extra):
         print(f"!! {tag} failed (exit {r.returncode}); see asic/{design}/runs/{tag}/")
     return tag
 
-def collect(design, periods):
+def finished_periods(design):
+    """Periods of every finished run on disk, largest first."""
+    found = []
+    for mp in (REPO / f"asic/{design}/runs").glob(f"{design}_*ns/final/metrics.json"):
+        tag = mp.parents[1].name
+        try:
+            found.append(float(tag[len(design) + 1:-2]))
+        except ValueError:
+            pass
+    return [f"{p:g}" for p in sorted(found, reverse=True)]
+
+def collect(design, periods=None):
     rows = []
-    for p in periods:
+    for p in (periods or finished_periods(design)):
         tag = f"{design}_{p}ns"
         mp = metrics_path(design, tag)
         if not mp.exists():
@@ -104,14 +124,14 @@ def collect(design, periods):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--design", default="serial_mac")
-    ap.add_argument("--periods", nargs="+", default=["20", "15", "12", "10"])
+    ap.add_argument("--periods", nargs="+", default=["30", "25", "20", "15"])
     ap.add_argument("--collect-only", action="store_true")
     ap.add_argument("extra", nargs="*", help="extra args passed to librelane (after --)")
     a = ap.parse_args()
     if not a.collect_only:
         for p in a.periods:
             run_one(a.design, p, a.extra)
-    collect(a.design, a.periods)
+    collect(a.design)   # every finished run on disk, not just this invocation's periods
 
 if __name__ == "__main__":
     sys.exit(main())
