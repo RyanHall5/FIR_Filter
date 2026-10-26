@@ -4,7 +4,7 @@
 set_property -dict { PACKAGE_PIN W5 IOSTANDARD LVCMOS33 } [get_ports clk]
 create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
 
-## LEDs (word_received[15:0] -> led[15:0])
+## LEDs (last filter output, result_reg[15:0] -> led[15:0])
 set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 } [get_ports {led[0]}]
 set_property -dict { PACKAGE_PIN E19 IOSTANDARD LVCMOS33 } [get_ports {led[1]}]
 set_property -dict { PACKAGE_PIN U19 IOSTANDARD LVCMOS33 } [get_ports {led[2]}]
@@ -22,6 +22,13 @@ set_property -dict { PACKAGE_PIN N3  IOSTANDARD LVCMOS33 } [get_ports {led[13]}]
 set_property -dict { PACKAGE_PIN P1  IOSTANDARD LVCMOS33 } [get_ports {led[14]}]
 set_property -dict { PACKAGE_PIN L1  IOSTANDARD LVCMOS33 } [get_ports {led[15]}]
 
+## Channel select switches (sw[1:0]: 01 = ch1, 10 = ch2, 11 = ch3, 00 = zero output)
+set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 } [get_ports {sw[0]}]   ;# SW0
+set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 } [get_ports {sw[1]}]   ;# SW1
+
+## Reset button (center)
+set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 } [get_ports btnC]
+
 ## SPI on Pmod JA (top row, pins 1-4; pin 5 on that row is GND)
 set_property -dict { PACKAGE_PIN J1 IOSTANDARD LVCMOS33 } [get_ports SCK]    ;# JA1 <- STM32 PA5
 set_property -dict { PACKAGE_PIN L2 IOSTANDARD LVCMOS33 } [get_ports CS_n]   ;# JA2 <- STM32 PB6
@@ -31,6 +38,9 @@ set_property -dict { PACKAGE_PIN G2 IOSTANDARD LVCMOS33 } [get_ports MISO]   ;# 
 ## SPI signals are asynchronous to clk (handled by the synchronizers in spi_slave)
 set_false_path -from [get_ports {SCK CS_n MOSI}]
 set_false_path -to   [get_ports MISO]
+
+## Switches and button are asynchronous to clk (synchronized in top)
+set_false_path -from [get_ports {sw[*] btnC}]
 
 ## Configuration
 set_property CFGBVS VCCO [current_design]
