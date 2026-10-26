@@ -32,11 +32,18 @@ Headline operating point: 25 MHz (40 ns). Basys 3 clock is fixed at 100 MHz (MMC
 ## Common sweep periods: 40, 30, 25, 20 ns (FPGA also has 10, 8, 6, 5; ASIC also 15, 12, 10)
 Compare platforms only at the same period.
 
-## FPGA results (Vivado 2026.1, OOC, vectorless power; matlab/data/ppa_reports/fpga/fpga_ppa_summary.csv)
-Earlier rows (serial_mac): DSP: 10 ns 153 LUT/46 FF/1 DSP/1 BRAM 6 mW; 6 ns met (Fmax ~171 MHz) 9 mW; 5 ns fails (-0.84 ns,
-sample buffer moved to distributed RAM, 295 LUT). No-DSP: meets only at 10 ns (475 LUT, 159 FF, Fmax ~105 MHz, 12 mW);
-fails 8/6/5 ns. Static power ~0.068 W dominates. 40/30/25/20 ns rows are in the CSV (commit 0894986).
-Fmax estimate = 1/(period - WNS); quote from the tightest run, not averaged.
+## FPGA results (Vivado 2026.1, OOC, vectorless power; matlab/data/ppa_reports/fpga/fpga_ppa_summary.csv, commit 0894986)
+serial_mac; WNS ns / timing met / LUT / FF / DSP / BRAM / dynamic mW:
+- DSP variant: 40 ns +32.98 yes 153/46/1/1 1 mW; 30 ns +22.93 yes 2 mW; 25 ns +17.93 yes 2 mW; 20 ns +13.00 yes 3 mW;
+  10 ns +3.47 yes 6 mW; 8 ns +1.49 yes 7 mW; 6 ns +0.14 yes 161 LUT 9 mW (tightest met, Fmax ~171 MHz);
+  5 ns -0.84 NO (tool moved buffer to distributed RAM: 295 LUT, 90 LUT-as-memory, 0 BRAM) 10 mW.
+- No-DSP variant: 40/30/25/20 ns all met (WNS +28.7/+18.9/+13.9/+9.5), 472 LUT, 159 FF, 0 DSP, 1 BRAM, 3/4/5/6 mW;
+  10 ns +0.50 yes 475 LUT 12 mW (tightest met, Fmax ~105 MHz); 8, 6, 5 ns fail (-0.87, -1.96, -3.04), 497-538 LUT, 16-27 mW.
+- Energy per clock (dynamic power x period): DSP ~50-60 pJ/clk, no-DSP ~120-135 pJ/clk (use the 10 ns rows; the CSV rounds
+  dynamic power to 1 mW so the 40-20 ns values are +-0.5 mW noise). ASIC is 304.5 pJ/clk (~5x DSP, ~2.5x no-DSP).
+- Static power ~0.068 W dominates total FPGA power (dynamic is only 1-3 mW at 25-40 MHz): report dynamic separately.
+- Fmax estimate = 1/(period - WNS) drifts with tool effort (DSP 142 MHz at relaxed periods vs 171 at 6 ns): quote from the tightest MET run.
+- Area/LUT counts are flat across relaxed periods (153 DSP / 472 no-DSP LUTs); they grow only when timing is tight.
 
 ## ASIC results (LibreLane, Sky130, serial_mac, default switching activity)
 | period ns | WNS ns | met | std-cell area um2 | power mW | power*period (pJ/clk) |
