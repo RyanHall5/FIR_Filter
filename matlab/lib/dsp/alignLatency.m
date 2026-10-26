@@ -6,8 +6,9 @@ function [rxAligned, lag] = alignLatency(rx, ref, maxLag)
 %     rx         samples returned by the STM32/FPGA
 %     ref        the expected stream (the sent samples, or the goldenFir output)
 %     maxLag     largest latency to search (samples)
-%     lag        latency found: rx(k + lag) matches ref(k). 1 for the echo design; for
-%                the FIR it includes the filter group delay and pipeline latency
+%     lag        latency found: rx(k + lag) matches ref(k). 1 for the echo design; 2 for the
+%                FIR design against the golden FIR output (return path in top.v; the
+%                golden output already includes the filter's own group delay)
 %     rxAligned  rx(lag+1:end), so rxAligned(i) lines up with ref(i)
 %
 %   The lag is the one with the most EXACT sample matches over a window taken from the

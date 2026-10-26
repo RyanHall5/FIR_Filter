@@ -68,6 +68,13 @@ function cfg = config()
     cfg.captureFile   = 'hw_capture.mat';   % stage 06 output (in cfg.captureDir), stage 07 input
     cfg.maxLag        = 4096;         % largest latency alignLatency searches (samples)
 
+    % --- Stage 06/07: hardware demo (Basys 3 running top.v) ---
+    cfg.hw.channel      = 1;        % channel the Basys 3 switches are set to: sw[1:0] = 01, 10, 11 for ch 1, 2, 3
+    cfg.hw.expectedLag  = 2;        % samples the returned stream trails the sent stream (top.v tx_hold design)
+    cfg.hw.flushSamples = 512;      % zeros sent ahead of each vector test to flush the filter history (multiple of chunkSamples)
+    cfg.hw.vectorTests  = {'impulse', 'step', 'composite'};   % in_<name>.hex vectors sent by the vector test
+    cfg.hw.playAudio    = true;     % stage 07 plays the demodulated channel
+
     % --- Stage 05: STM32 self-test ---
     cfg.selftest.mode      = 'loopback';   % 'send' or 'loopback'
     cfg.selftest.numChunks = 200;          % chunks of cfg.chunkSamples samples
@@ -80,6 +87,7 @@ function cfg = config()
     cfg.run.goldenModel   = true;
     cfg.run.stm32Selftest = false;   % needs the STM32 connected
     cfg.run.hwDemo        = false;   % needs the STM32 (and FPGA) connected; replaces the old cfg.doStream
+    cfg.run.hwVectorTest  = false;   % needs the STM32 and FPGA connected; bit-exact test with the golden vectors
     cfg.run.analysis      = false;   % placeholder stage
     cfg.run.visualize     = false;
     cfg.run.ppaReport     = false;   % placeholder stage
