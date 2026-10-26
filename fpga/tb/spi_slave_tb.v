@@ -8,7 +8,17 @@
 // Project Name : FIR_Filter
 // Target Devices : Basys3
 //
+// AI note     : Updated by Claude (Anthropic) at the author's request, to match the new
+//               spi_slave ports (rst, tx_word, word_valid) and to add the word_valid and
+//               tx_word snapshot checks (Test 8). The SPI master model, the echo checks
+//               and Tests 1 to 7 were written by the author.
+//
 // Description : testbench for logic for spi slave input/output
+//               - Tests 1 to 7: tx_word is tied to word_received (echo), so the word
+//                 received in one slot must come back in the next slot
+//               - word_valid: exactly one single-clock pulse per complete word
+//               - Test 8: tx_word is driven separately and changed mid-word; MISO must
+//                 keep sending the value captured at the start of the word
 //****************************************************
 `timescale 1ns/1ps
 
@@ -23,21 +33,37 @@ module spi_slave_tb;
     reg         SCK      = 1'b0;   // Mode 0: idles low
     reg         CS_n     = 1'b1;   // idles high
     reg         MOSI     = 1'b0;
+    reg         rst      = 1'b1;   // synchronous reset, released after a few clocks
     wire        MISO;
     wire [15:0] word_received;
+    wire        word_valid;
+
+    // tx_word source: echo of word_received (Tests 1 to 7) or tb-driven (Test 8)
+    reg         tx_sel   = 1'b0;
+    reg  [15:0] tx_ext   = 16'h0000;
+    wire [15:0] tx_word  = tx_sel ? tx_ext : word_received;
 
     // ---------------- Device under test ----------------
     spi_slave dut (
         .FPGA_clk      (FPGA_clk),
+        .rst           (rst),
         .SCK           (SCK),
         .CS_n          (CS_n),
         .MOSI          (MOSI),
+        .tx_word       (tx_word),
+        .word_valid    (word_valid),
         .MISO          (MISO),
         .word_received (word_received)
     );
 
     // ---------------- FPGA clock generator ----------------
     always #(CLK_HALF) FPGA_clk = ~FPGA_clk;
+
+    // ---------------- Reset ----------------
+    initial begin
+        repeat (5) @(posedge FPGA_clk);
+        rst <= 1'b0;
+    end
 
     // ---------------- Bookkeeping ----------------
     integer errors    = 0;
@@ -48,6 +74,21 @@ module spi_slave_tb;
 
     reg [15:0] tx_buf [0:127];           // words the "STM32" sends in the next frame
     reg [15:0] prev_last = 16'h0000;     // model: last complete word the slave has received
+
+    // word_valid monitor: count pulses, flag any pulse longer than one clock
+    integer valid_pulses = 0;            // word_valid pulses seen
+    integer words_sent   = 0;            // complete words the master has sent
+    reg     valid_prev   = 1'b0;
+    always @(posedge FPGA_clk) begin
+        valid_prev <= word_valid;
+        if (word_valid === 1'b1) begin
+            valid_pulses = valid_pulses + 1;
+            if (valid_prev === 1'b1) begin
+                errors = errors + 1;
+                $display("[%0t ns] ERROR: word_valid high for more than one clock", $time);
+            end
+        end
+    end
 
     // ---------------- Clock out nbits bits, MSB first (SPI Mode 0) ----------------
     // Drives MOSI, samples MISO at each rising edge, compares against 'expected'.
@@ -101,6 +142,7 @@ module spi_slave_tb;
             #(SCK_HALF);
             CS_n = 1'b1;
             if (nwords > 0) prev_last = tx_buf[nwords-1];   // update the model
+            words_sent = words_sent + nwords;
             #(gap_ns);
 
             // The debug port should show the last COMPLETE word
@@ -110,6 +152,45 @@ module spi_slave_tb;
                 $display("[%0t ns] ERROR frame %0d: word_received = %h, expected %h",
                          $time, frame_num, word_received, prev_last);
             end
+        end
+    endtask
+
+    // ---------------- Snapshot test ----------------
+    // tx_word is tb-driven. It is A55A when CS falls and changes to 1234 in the middle of
+    // word 0. MISO must still finish word 0 as A55A (captured at the start of the word),
+    // then send 1234 as word 1 (captured at the start of that word).
+    task snapshot_test;
+        integer i;
+        reg [15:0] expected;
+        begin
+            frame_num = frame_num + 1;
+            tx_sel = 1'b1;
+            tx_ext = 16'hA55A;
+            #(100);
+            CS_n = 1'b0;
+            #(300);
+            for (i = 0; i < 32; i = i + 1) begin
+                MOSI = 1'b0;
+                if (i == 8) tx_ext = 16'h1234;                // change mid-word
+                expected = (i < 16) ? 16'hA55A : 16'h1234;
+                #(SCK_HALF);
+                SCK = 1'b1;
+                checks = checks + 1;
+                if (MISO !== expected[15 - (i % 16)]) begin
+                    errors = errors + 1;
+                    if (errors <= 20)
+                        $display("[%0t ns] ERROR snapshot frame %0d bit %0d: expected %b got %b (expected word %h)",
+                                 $time, frame_num, i, expected[15 - (i % 16)], MISO, expected);
+                end
+                #(SCK_HALF);
+                SCK = 1'b0;
+            end
+            #(SCK_HALF);
+            CS_n = 1'b1;
+            words_sent = words_sent + 2;
+            #(1000);
+            tx_sel = 1'b0;
+            prev_last = 16'h0000;   // the all-zero words sent above are now the last received
         end
     endtask
 
@@ -155,6 +236,16 @@ module spi_slave_tb;
         for (k = 0; k < 100; k = k + 1) tx_buf[k] = $urandom;
         send_frame(100, 0, 1000);
 
+        $display("Test 8: tx_word changes mid-word (snapshot check)");
+        snapshot_test;
+
+        // word_valid must have pulsed exactly once per complete word
+        checks = checks + 1;
+        if (valid_pulses != words_sent) begin
+            errors = errors + 1;
+            $display("ERROR: %0d word_valid pulses for %0d complete words", valid_pulses, words_sent);
+        end
+
         // ---------------- Summary ----------------
         if (errors == 0) begin
             ALL_TESTS_PASSED = 1'b1;
@@ -170,4 +261,3 @@ module spi_slave_tb;
     end
 
 endmodule
-
