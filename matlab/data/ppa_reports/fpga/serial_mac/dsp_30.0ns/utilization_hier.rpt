@@ -1,0 +1,32 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date         : Mon Oct 26 12:45:13 2026
+| Host         : Ryan_Laptop running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file D:/Projects/Github_Clones/FIR_Filter/matlab/data/ppa_reports/fpga/serial_mac/dsp_30.0ns/utilization_hier.rpt
+| Design       : FIR_Core_MAC
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------------+---------------+------------+------------+---------+------+-----+--------+--------+------------+
+|      Instance      |     Module    | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------------+---------------+------------+------------+---------+------+-----+--------+--------+------------+
+| FIR_Core_MAC       |         (top) |        153 |        151 |       0 |    2 |  46 |      0 |      2 |          1 |
+|   (FIR_Core_MAC)   |         (top) |         16 |         14 |       0 |    2 |  32 |      0 |      0 |          1 |
+|   coef_rom_inst    |      coef_rom |         64 |         64 |       0 |    0 |   0 |      0 |      0 |          0 |
+|   sample_buff_inst | sample_buffer |         74 |         74 |       0 |    0 |  14 |      0 |      2 |          0 |
++--------------------+---------------+------------+------------+---------+------+-----+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

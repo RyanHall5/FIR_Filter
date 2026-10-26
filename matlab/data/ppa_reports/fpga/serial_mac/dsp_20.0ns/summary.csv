@@ -1,0 +1,2 @@
+architecture,variant,period_ns,wns_ns,whs_ns,timing_met,fmax_mhz,luts,lut_as_memory,ffs,dsps,bram_tiles,dynamic_w,static_w,total_w,power_method,part,vivado,commit,date
+serial_mac,dsp,20.0,13.004,0.164,yes,142.9,153,2,46,1,1,0.003,0.068,0.071,vectorless,xc7a35tcpg236-1,2026.1,272aad9,2026-10-26 12:53:26
