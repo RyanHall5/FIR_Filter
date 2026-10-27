@@ -32,15 +32,16 @@
 //****************************************************
 module sample_buffer #(
     parameter BUFFER_COUNT = 117,                     // filter length (number of samples kept)
-    parameter DATA_WIDTH   = 16                       // sample width (bits)
+    parameter DATA_WIDTH   = 16,                      // sample width (bits)
+    parameter LANES        = 1
 )(
     input  wire clk,                                  // Rising edge enabled clock
     input  wire rst,                                  // Synchronous reset (clears pointer, count and outputs)
     input  wire we,                                   // Write enable: store wd as the newest sample
     input  wire signed [DATA_WIDTH-1:0] wd,           // Write data
     input  wire [$clog2(BUFFER_COUNT)-1:0] k,         // Tap index / delay of sample1
-    output reg  signed [DATA_WIDTH-1:0] sample1,      // Delay k
-    output reg  signed [DATA_WIDTH-1:0] sample2       // Delay BUFFER_COUNT-1-k
+    output wire [LANES*DATA_WIDTH-1:0] sample1_flat,      // Delay k
+    output wire [LANES*DATA_WIDTH-1:0] sample2_flat       // Delay BUFFER_COUNT-1-k
 );
 
     //====================================================
@@ -56,10 +57,6 @@ module sample_buffer #(
     reg [ADDR_BITS-1:0] in_ptr;                        // Where the next input goes (newest is in_ptr-1)
     reg [CNT_BITS-1:0]  numReceived;                   // Samples written since reset, saturates at BUFFER_COUNT
     reg signed [DATA_WIDTH-1:0] buffer [0:BUFFER_COUNT-1];   // Data storage (not reset: see valid1/valid2)
-
-    reg [ADDR_BITS:0] addr1, addr2;                    // Read addresses, one bit wider than an address (sum can reach 2N-2)
-    wire valid1;                                       // delay k has been written since reset
-    wire valid2;                                       // delay LAST_IDX-k has been written since reset
 
     //====================================================
     // Write side
@@ -96,40 +93,58 @@ module sample_buffer #(
     // Read side
     //====================================================
 
-    // Read addresses. Delay d lives at (in_ptr - 1 - d) mod BUFFER_COUNT; the
-    // expressions below are arranged so they never go below zero:
-    //   delay k              -> in_ptr + BUFFER_COUNT - 1 - k, then wrap
-    //   delay LAST_IDX - k   -> in_ptr + k, then wrap
-    // Both sums are below 2*BUFFER_COUNT, so one conditional subtract is enough to wrap.
-    always @(*) begin
-        addr1 = in_ptr + BUFFER_COUNT - 1 - k;
-        if (addr1 >= BUFFER_COUNT)
-            addr1 = addr1 - BUFFER_COUNT;
+    // sample process
+    genvar i;
+    generate
+        for (i = 0; i < LANES; i = i + 1) begin : lane
 
-        addr2 = in_ptr + k;
-        if (addr2 >= BUFFER_COUNT)
-            addr2 = addr2 - BUFFER_COUNT;
-    end
+            // this lane's tap = its delay for sample1
+            wire [ADDR_BITS-1:0] kj = k*LANES + i;
 
-    // A delay is valid only if that many samples have actually been written.
-    // This replaces clearing the storage array on reset.
-    assign valid1 = (k < numReceived);
-    assign valid2 = ((LAST_IDX - k) < numReceived);
+            // ---- sample1 read path ----
+            reg  [ADDR_BITS:0] addr1;                  // one bit wider: sum can reach 2N-2
+            wire               valid1 = (kj < numReceived);
 
-    // sample1 process: registered read, 0 for delays older than the first sample
-    always @(posedge clk) begin
-        if (rst)
-            sample1 <= {DATA_WIDTH{1'b0}};
-        else
-            sample1 <= valid1 ? buffer[addr1[ADDR_BITS-1:0]] : {DATA_WIDTH{1'b0}};
-    end
+            always @(*) begin
+                addr1 = in_ptr + BUFFER_COUNT - 1 - kj;
+                if (addr1 >= BUFFER_COUNT)
+                    addr1 = addr1 - BUFFER_COUNT;
+            end
 
-    // sample2 process: same, for the mirrored delay
-    always @(posedge clk) begin
-        if (rst)
-            sample2 <= {DATA_WIDTH{1'b0}};
-        else
-            sample2 <= valid2 ? buffer[addr2[ADDR_BITS-1:0]] : {DATA_WIDTH{1'b0}};
-    end
+            reg signed [DATA_WIDTH-1:0] sample1_lane_i;     // this lane's output register
+
+            always @(posedge clk) begin
+                if (rst)
+                    sample1_lane_i <= {DATA_WIDTH{1'b0}};
+                else
+                    sample1_lane_i <= valid1 ? buffer[addr1[ADDR_BITS-1:0]] : {DATA_WIDTH{1'b0}};
+            end
+
+            assign sample1_flat[i*DATA_WIDTH +: DATA_WIDTH] = sample1_lane_i;
+
+
+            // ---- sample2 read path ----
+            reg  [ADDR_BITS:0] addr2;                  // one bit wider: sum can reach 2N-2
+            wire               valid2 = ((LAST_IDX-kj) < numReceived);
+
+            always @(*) begin
+                addr2 = in_ptr + kj;
+                if (addr2 >= BUFFER_COUNT)
+                    addr2 = addr2 - BUFFER_COUNT;
+            end
+
+            reg signed [DATA_WIDTH-1:0] sample2_lane_i;     // this lane's output register
+
+            always @(posedge clk) begin
+                if (rst)
+                    sample2_lane_i <= {DATA_WIDTH{1'b0}};
+                else
+                    sample2_lane_i <= valid2 ? buffer[addr2[ADDR_BITS-1:0]] : {DATA_WIDTH{1'b0}};
+            end
+
+            assign sample2_flat[i*DATA_WIDTH +: DATA_WIDTH] = sample2_lane_i;
+            
+        end
+    endgenerate
 
 endmodule
