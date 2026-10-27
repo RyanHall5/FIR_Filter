@@ -8,8 +8,7 @@
 // Project Name : FIR_Filter
 // Target Devices : Basys3
 //
-// AI note     : This testbench was written by Claude (Anthropic) at the author's request.
-//               The design under test, FIR_Core_MAC, was written by the author.
+// AI note     : This testbench was written by Claude.
 //
 // Description : self-checking testbench for FIR_Core_MAC. Feeds the MATLAB golden-model
 //               input vectors through the core, one sample_valid pulse per sample, and
@@ -36,9 +35,11 @@ module FIR_Core_MAC_tb;
     localparam ACC_W     = 39;
     localparam SHIFT     = 16;
     localparam TAP_COUNT = 59;
+    localparam LANES     = 59;        // taps per clock: 1 = serial MAC. Try 1, 2, 4, 6, 8, 50, 59
 
     localparam MAX_SAMPLES = 8192;   // longest vector (noise, composite)
-    localparam GAP_CLKS    = 70;     // clocks between sample_valid pulses (the core needs 64)
+    localparam GAP_CLKS    = 70;     // clocks between sample_valid pulses (must exceed the core's
+                                     // latency: 64 at LANES = 1, fewer as LANES grows)
     localparam RUN_LONG    = 1;      // 1 = include the 8192-sample noise and composite vectors
 
     // Upper accumulator bits that must all equal the sign bit of the 16-bit output slice
@@ -58,7 +59,8 @@ module FIR_Core_MAC_tb;
         .SAMPLE_W  (SAMPLE_W),
         .ACC_W     (ACC_W),
         .SHIFT     (SHIFT),
-        .TAP_COUNT (TAP_COUNT)
+        .TAP_COUNT (TAP_COUNT),
+        .LANES     (LANES)
     ) dut (
         .clk          (clk),
         .rst          (rst),
@@ -224,8 +226,8 @@ module FIR_Core_MAC_tb;
 
     // ---------------- Test sequence ----------------
     initial begin
-        $display("FIR_Core_MAC testbench: %0d taps, COEF_W %0d, SHIFT %0d, ACC_W %0d",
-                 TAP_COUNT, COEF_W, SHIFT, ACC_W);
+        $display("FIR_Core_MAC testbench: %0d taps, LANES %0d, COEF_W %0d, SHIFT %0d, ACC_W %0d",
+                 TAP_COUNT, LANES, COEF_W, SHIFT, ACC_W);
 
         // Impulse: the output is the coefficient sequence, so this shows ordering bugs first
         run_test("in_impulse.hex", "exp_impulse_ch1.hex", 1);
@@ -258,12 +260,12 @@ module FIR_Core_MAC_tb;
             run_test("in_composite.hex", "exp_composite_ch3.hex", 3);
         end
 
-        $display("Latency: %0d clocks from sample_valid to out_valid", latency);
+        $display("Latency: %0d clocks from sample_valid to out_valid (LANES %0d)", latency, LANES);
         if (failed_tests == 0)
-            $display("PASS: FIR_Core_MAC, %0d tests, 0 errors", total_tests);
+            $display("PASS: FIR_Core_MAC, LANES %0d, %0d tests, 0 errors", LANES, total_tests);
         else
-            $display("FAIL: FIR_Core_MAC, %0d of %0d tests failed, %0d errors",
-                     failed_tests, total_tests, total_errors);
+            $display("FAIL: FIR_Core_MAC, LANES %0d, %0d of %0d tests failed, %0d errors",
+                     LANES, failed_tests, total_tests, total_errors);
         $finish;
     end
 
