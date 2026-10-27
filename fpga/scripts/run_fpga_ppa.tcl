@@ -46,9 +46,15 @@ set part       xc7a35tcpg236-1
 # Sweep settings (edit these)
 #====================================================
 # architecture name -> top module and the RTL files it needs (in fpga/rtl).
-# Add the semi-parallel and fully parallel designs here when they exist.
-set archs [dict create \
-    serial_mac [dict create top FIR_Core_MAC files {FIR_Core_MAC.v coef_rom.v sample_buffer.v}] ]
+# One architecture per LANES value, all from the same FIR_Core_MAC source: the LANES
+# parameter is passed to synthesis as a generic. Results are labelled lanes<N>
+# (lanes1 is the serial MAC). Edit lanes_list to choose which ones to sweep.
+set lanes_list {1 2 4 8 16 59}
+set archs [dict create]
+foreach L $lanes_list {
+    dict set archs lanes$L [dict create top FIR_Core_MAC \
+        files {FIR_Core_MAC.v coef_rom.v sample_buffer.v} generics "LANES=$L"]
+}
 set variants {dsp nodsp}
 set periods  {40.0 30.0 25.0 20.0 10.0 8.0 6.0 5.0}      ;# target clock periods in ns
 set jobs     4                        ;# parallel jobs for synthesis and implementation
@@ -72,7 +78,7 @@ proc git_commit {repo_dir} {
 }
 
 # One synthesis + implementation run; returns after writing its reports and summary row
-proc run_one {arch top files variant period} {
+proc run_one {arch top files variant period generics} {
     global fpga_dir repo_dir rtl_dir vec_dir ppa_dir out_root scratch part jobs keep_projects rerun_all
 
     set tag    [format "%s_%sns" $variant $period]
@@ -96,6 +102,8 @@ proc run_one {arch top files variant period} {
         set_property file_type {Data Files} [get_files $hexf]
     }
     set_property top $top [get_filesets sources_1]
+    # module parameters for this architecture, e.g. "LANES=4" (empty = use the defaults)
+    if {$generics ne ""} { set_property generic $generics [get_filesets sources_1] }
 
     # Constraint: a single clock on the clk port at the target period
     set xdc [file join $rundir clk.xdc]          ;# kept with the results, so the constraint is on record
@@ -193,9 +201,10 @@ set failed {}
 dict for {arch spec} $archs {
     set top   [dict get $spec top]
     set files [dict get $spec files]
+    set gen   [expr {[dict exists $spec generics] ? [dict get $spec generics] : ""}]
     foreach variant $variants {
         foreach period $periods {
-            if {[catch {run_one $arch $top $files $variant $period} err]} {
+            if {[catch {run_one $arch $top $files $variant $period $gen} err]} {
                 puts "ERROR in $arch $variant ${period} ns: $err"
                 set lf [open [file join $out_root failed_runs.log] a]
                 puts $lf "[clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S}]  $arch $variant ${period} ns: $err"
