@@ -8,29 +8,36 @@
 // Project Name : FIR_Filter
 // Target Devices : Basys3
 //
-// Description : Multiply-Accumulate architecture approach to FIR filter
+// Description : Multiply-Accumulate architecture approach to FIR filter, with LANES
+//               multiply-accumulate lanes working in parallel (LANES = 1 is the serial MAC)
 //
-// AI note     : Comments and code organization were done by Claude.
+// AI note     : Comments and code organization were done by Claude. The per-lane
+//               datapath and lane-sum stage were added by Claude (Anthropic).
 //
-// Operation   : One output sample per input sample, computed serially with a single
-//               multiplier. Because the filter is symmetric, only TAP_COUNT (59) of the
-//               117 coefficients are stored, and each step pre-adds the two samples that
-//               share a coefficient:  acc = sum( h[k] * (x[n-k] + x[n-116+k]) )
-//               The centre tap (k = TAP_COUNT-1) has no partner, so it skips the pre-add.
-//               The output is acc >> SHIFT, which undoes the coefficient scaling.
+// Operation   : One output sample per input sample. Because the filter is symmetric, only
+//               TAP_COUNT (59) of the 117 coefficients are stored, and each lane pre-adds
+//               the two samples that share a coefficient:
+//                   acc = sum( h[t] * (x[n-t] + x[n-116+t]) )
+//               The sweep takes STEPS = ceil(TAP_COUNT/LANES) steps. On step k, lane i
+//               works on tap t = k*LANES + i. Taps past TAP_COUNT-1 are padding: their
+//               coefficient reads as 0, so they add nothing. The centre tap (t =
+//               TAP_COUNT-1) has no partner, so its lane skips the pre-add. The lane
+//               products are summed every clock into one accumulator. The output is
+//               acc >> SHIFT, which undoes the coefficient scaling.
 //
 // FSM         : IDLE  - wait for sample_valid; the sample is written to the buffer
-//               SWEEP - k steps through all 59 taps, one per clock
-//               DRAIN - k held at the last tap while the pipeline empties
+//               SWEEP - k steps through STEPS steps, one per clock (LANES taps each)
+//               DRAIN - k held at the last step while the pipeline empties
 //
-// Pipeline    : For a tap whose k is presented in cycle c:
+// Pipeline    : For a step whose k is presented in cycle c:
 //                 c   : k addresses sample_buffer and coef_rom
-//                 c+1 : memory outputs (sample1, sample2, current_coeff)    flags *_mem
-//                 c+2 : pre_sum register, coef_d register                   flags *_pre
-//                 c+3 : product register                                    flags *_mult
-//                 c+4 : accumulator (holds the full sum once last_tap_acc)  flags *_acc
+//                 c+1 : memory outputs (sample1, sample2, coefficients)     flags *_mem
+//                 c+2 : pre_sum register, coef_d register (per lane)        flags *_pre
+//                 c+3 : product register (per lane)                         flags *_mult
+//                 c+4 : accumulator adds the sum of all lane products;
+//                       it holds the full sum once last_tap_acc is high     flags *_acc
 //               The last_tap_* and valid_* flags travel down the pipeline with the data,
-//               so each stage knows which tap it is holding. sample_out and out_valid
+//               so each stage knows which step it is holding. sample_out and out_valid
 //               update on the edge that ends the last_tap_acc cycle.
 //****************************************************
 module FIR_Core_MAC #(
@@ -38,7 +45,8 @@ module FIR_Core_MAC #(
     parameter SAMPLE_W = 16,     // input/output sample width (bits)
     parameter ACC_W = 39,        // accumulator width: 17 (pre-add) + COEF_W + ceil(log2(59))
     parameter SHIFT = 16,        // output right-shift (matches coefficient scaling)
-    parameter TAP_COUNT = 59     // stored (folded) taps, centre tap last
+    parameter TAP_COUNT = 59,    // stored (folded) taps, centre tap last
+    parameter LANES = 1          // taps processed per clock (1 = serial MAC)
 )(
     input wire clk,
     input wire rst,                                   // synchronous reset
@@ -55,6 +63,8 @@ module FIR_Core_MAC #(
     localparam BUFF_SZ = TAP_COUNT*2 - 1;       // full filter length (117), sets sample_buffer depth
     localparam IDX_W  = $clog2(TAP_COUNT);      // bits to index a stored tap (0..58)
     localparam K_SZ = $clog2(BUFF_SZ);          // bits of k; sample_buffer accepts 0..116
+    localparam STEPS = (TAP_COUNT + LANES - 1) / LANES; // clocks in a sweep: ceil(TAP_COUNT/LANES)
+    localparam PROD_W = SAMPLE_W + COEF_W + 1;  // 33 bits: 17-bit pre_sum x 16-bit coefficient
 
     // State machine encoding
     localparam [1:0] S_IDLE = 2'd0,
@@ -67,18 +77,18 @@ module FIR_Core_MAC #(
 
     // Control
     reg [1:0] state;
-    reg [K_SZ-1:0] k;                           // tap index, drives both memories
+    reg [K_SZ-1:0] k;                           // step index (0..STEPS-1), drives both memories
     reg [1:0] ch_select_latched;                // ch_select captured when a sample arrives
     wire we;                                    // write the new sample into sample_buffer
 
-    // Memory interface
-    wire signed [COEF_W-1:0] current_coeff;     // coefficient for the tap addressed last cycle
+    // Memory interface (lane i is at [i*WIDTH +: WIDTH] in each bus)
+    wire signed [LANES*COEF_W-1:0] current_coeffs;     // coefficient for each lane's tap, addressed last cycle
     wire [IDX_W-1:0] coeff_index;               // k, truncated to coef_rom's address width
-    wire signed [SAMPLE_W-1:0] sample1;         // x[n-k]
-    wire signed [SAMPLE_W-1:0] sample2;         // x[n-116+k]
+    wire signed [LANES*SAMPLE_W-1:0] sample1_array;    // x[n-t] for each lane's tap t
+    wire signed [LANES*SAMPLE_W-1:0] sample2_array;    // x[n-116+t] for each lane's tap t
 
-    // Pipeline flags: last_tap_* marks the centre tap (final tap of the sweep),
-    // valid_* marks cycles holding real tap data. Suffix = stage the data is in.
+    // Pipeline flags: last_tap_* marks the last step of the sweep (it holds the centre tap),
+    // valid_* marks cycles holding real step data. Suffix = stage the data is in.
     reg last_tap_mem;
     reg last_tap_pre;
     reg last_tap_mult;
@@ -87,10 +97,10 @@ module FIR_Core_MAC #(
     reg valid_pre;
     reg valid_mult;
 
-    // Datapath registers
-    reg signed [COEF_W-1:0] coef_d;             // current_coeff delayed one cycle to meet pre_sum
-    reg signed [SAMPLE_W:0] pre_sum;            // 17 bits: one wider than a sample so the sum can't overflow
-    reg signed [SAMPLE_W + COEF_W:0] product;   // 33 bits: 17-bit pre_sum x 16-bit coefficient
+    // Datapath
+    wire [LANES*PROD_W-1:0] product_flat;       // every lane's product, packed (lane i at [i*PROD_W +: PROD_W])
+    reg signed [ACC_W-1:0] lane_sum;            // sum of all lane products this clock
+    integer m;                                  // loop index for lane_sum
     reg signed [ACC_W-1:0] acc;                 // running sum; complete once last_tap_acc is high
 
     // Output
@@ -107,20 +117,20 @@ module FIR_Core_MAC #(
         else begin
             case (state)
                 S_IDLE:  if (sample_valid) state <= S_SWEEP;
-                S_SWEEP: if (k == TAP_COUNT-1) state <= S_DRAIN;     // last tap addressed
-                S_DRAIN: if (last_tap_acc) state <= S_IDLE;          // last tap has been accumulated
+                S_SWEEP: if (k == STEPS-1) state <= S_DRAIN;     // last step addressed
+                S_DRAIN: if (last_tap_acc) state <= S_IDLE;      // last step has been accumulated
                 default: state <= S_IDLE; // if undefined state
             endcase
         end
     end
 
     // k counting process
-    // 0 in IDLE, steps 0..58 in SWEEP, then holds at 58 in DRAIN
+    // 0 in IDLE, steps 0..STEPS-1 in SWEEP, then holds at STEPS-1 in DRAIN
     always @(posedge clk) begin
         case (state)
             S_IDLE:  k <= 0;
-            S_SWEEP: if (k != TAP_COUNT-1) k <= k + 1;
-            S_DRAIN: k <= TAP_COUNT-1;
+            S_SWEEP: if (k != STEPS-1) k <= k + 1;
+            S_DRAIN: k <= STEPS-1;
             default: k <= 0; // if undefined state
         endcase
     end
@@ -141,35 +151,37 @@ module FIR_Core_MAC #(
     // Instantiate coeff memory
     coef_rom #(
         .COEF_WIDTH (COEF_W),
-        .TAP_COUNT  (TAP_COUNT)
+        .TAP_COUNT  (TAP_COUNT),
+        .LANES      (LANES)
     ) coef_rom_inst (
-        .clk       (clk),
-        .ch_select (ch_select_latched),
-        .tap_index (coeff_index),
-        .tap_out   (current_coeff)
+        .clk            (clk),
+        .ch_select      (ch_select_latched),
+        .tap_index      (coeff_index),
+        .tap_out_flat   (current_coeffs)
     );
 
     // Instantiate sample buffer
     sample_buffer #(
-        .BUFFER_COUNT(BUFF_SZ),
-        .DATA_WIDTH(SAMPLE_W)
+        .BUFFER_COUNT   (BUFF_SZ),
+        .DATA_WIDTH     (SAMPLE_W),
+        .LANES          (LANES)
     ) sample_buff_inst (
-        .clk(clk),
-        .rst(rst),
-        .we(we),
-        .wd(sample_in),
-        .k(k),
-        .sample1(sample1),
-        .sample2(sample2)
+        .clk    (clk),
+        .rst    (rst),
+        .we     (we),
+        .wd     (sample_in),
+        .k      (k),
+        .sample1_flat(sample1_array),
+        .sample2_flat(sample2_array)
     );
 
     //====================================================
     // Pipeline flags
     //====================================================
 
-    // last_tap_mem process: high in the cycle the memory outputs hold the centre tap
+    // last_tap_mem process: high in the cycle the memory outputs hold the last step (centre tap)
     always @(posedge clk) begin
-        if (state == S_SWEEP && k == TAP_COUNT-1)
+        if (state == S_SWEEP && k == STEPS-1)
             last_tap_mem <= 1'b1;
         else
             last_tap_mem <= 1'b0;
@@ -183,7 +195,7 @@ module FIR_Core_MAC #(
     //last_tap_acc process
     always @(posedge clk) begin last_tap_acc <= last_tap_mult; end
 
-    // valid_mem process: high for the 59 cycles the memory outputs hold real taps
+    // valid_mem process: high for the STEPS cycles the memory outputs hold real steps
     always @(posedge clk) begin
         if (state == S_SWEEP)
             valid_mem <= 1'b1;
@@ -198,32 +210,58 @@ module FIR_Core_MAC #(
     always @(posedge clk) begin valid_mult <= valid_pre; end
 
     //====================================================
-    // Datapath
+    // Datapath: one pre-add + multiplier per lane
     //====================================================
+    genvar i;
+    generate
+        for (i = 0; i < LANES; i = i + 1) begin : lane
 
-    // coef_d process: coefficient waits one cycle so it lines up with pre_sum at the multiplier
-    always @(posedge clk) begin coef_d <= current_coeff; end
+            // Lane that holds the centre tap on the last step (e.g. 58 - 14*4 = 2 for LANES = 4)
+            localparam CENTRE_LANE = (TAP_COUNT-1) - (STEPS-1)*LANES;
 
-    // pre_sum process
-    always @(posedge clk) begin
-        if (last_tap_mem)
-            pre_sum <= sample1;              // centre tap: both samples are the same, don't add
-        else
-            pre_sum <= sample1 + sample2;
+            // This lane's operands, pulled out of the buses INTO signed wires.
+            // (A part-select is always unsigned, so it must be assigned to a signed wire
+            // before it is used in arithmetic or negative values would be zero-extended.)
+            wire signed [SAMPLE_W-1:0] s1 = sample1_array[i*SAMPLE_W +: SAMPLE_W];
+            wire signed [SAMPLE_W-1:0] s2 = sample2_array[i*SAMPLE_W +: SAMPLE_W];
+            wire signed [COEF_W-1:0]   c  = current_coeffs[i*COEF_W +: COEF_W];
+
+            reg signed [COEF_W-1:0]   coef_d_i;     // coefficient delayed one cycle to meet pre_sum
+            reg signed [SAMPLE_W:0]   pre_sum_i;    // 17 bits: one wider than a sample so the sum can't overflow
+            reg signed [PROD_W-1:0]   product_i;    // 33 bits: 17-bit pre_sum x 16-bit coefficient
+
+            // coef_d process: coefficient waits one cycle so it lines up with pre_sum at the multiplier
+            always @(posedge clk) begin coef_d_i <= c; end
+
+            // pre_sum process: the centre tap has no partner sample, so its lane skips the pre-add
+            always @(posedge clk) begin
+                if (last_tap_mem && (i == CENTRE_LANE))
+                    pre_sum_i <= s1;
+                else
+                    pre_sum_i <= s1 + s2;
+            end
+
+            // product process
+            always @(posedge clk) begin product_i <= pre_sum_i * coef_d_i; end
+
+            assign product_flat[i*PROD_W +: PROD_W] = product_i;
+        end
+    endgenerate
+
+    // lane_sum process: add all the lane products (combinational, same stage as the accumulate)
+    always @(*) begin
+        lane_sum = {ACC_W{1'b0}};
+        for (m = 0; m < LANES; m = m + 1)
+            lane_sum = lane_sum + $signed(product_flat[m*PROD_W +: PROD_W]);
     end
 
-    // product process
-    always @(posedge clk) begin
-        product <= pre_sum * coef_d;
-    end
-
-    // acc process: cleared in IDLE, adds a product only on cycles holding a real tap,
+    // acc process: cleared in IDLE, adds the lane sum only on cycles holding a real step,
     // and holds the finished sum through DRAIN
     always @(posedge clk) begin
         if (state == S_IDLE)
             acc <= {ACC_W{1'b0}};
         else if (valid_mult)
-            acc <= acc + product;
+            acc <= acc + lane_sum;
         else
             acc <= acc;
     end
