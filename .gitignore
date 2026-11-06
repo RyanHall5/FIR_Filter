@@ -42,3 +42,7 @@ fpga/vivado/
 .DS_Store
 Thumbs.db
 /.metadata/
+
+# ---------- LibreLane (asic/) ----------
+asic/*/runs/
+asic/*/config_*ns.json
