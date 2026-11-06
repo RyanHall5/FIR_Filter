@@ -21,7 +21,7 @@ After each run it records the git commit in runs/<tag>/ppa_meta.json. Results:
 The CSV is rebuilt from ALL design folders under asic/ each time, so running one
 design never drops another design's rows.
 """
-import argparse, csv, json, subprocess, sys, datetime
+import argparse, csv, json, shutil, subprocess, sys, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -167,6 +167,9 @@ def main():
     ap.add_argument("extra", nargs="*", help="extra args passed to librelane (after --)")
     a = ap.parse_args()
     if not a.collect_only:
+        if shutil.which("librelane") is None:
+            sys.exit("librelane not found on PATH: start the LibreLane nix-shell first, "
+                     "then rerun from the repo root (or use --collect-only)")
         for d in a.design:
             if not (REPO / f"asic/{d}/config.json").exists():
                 sys.exit(f"no asic/{d}/config.json (known designs: {', '.join(all_designs())})")

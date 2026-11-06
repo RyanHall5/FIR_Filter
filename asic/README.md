@@ -21,14 +21,14 @@ AI note: files in this folder were written by Claude (Anthropic). The core
 
 Run from the repo root, in the nix-shell where `librelane` works:
 
-1. `python asic/scripts/gen_coef_rom.py` - re-run if the coefficient hex files change
-2. `python asic/scripts/make_lane_designs.py` - only to add lane counts (default 1 2 4 8 16;
+1. `python3 asic/scripts/gen_coef_rom.py` - re-run if the coefficient hex files change
+2. `python3 asic/scripts/make_lane_designs.py` - only to add lane counts (default 1 2 4 8 16;
    e.g. `--lanes 32`). The folders for 1, 2, 4, 8, 16 are already committed.
 3. Sweep, e.g.
-   - `python asic/scripts/run_asic_ppa.py --design lanes1 --periods 40` (regression check
+   - `python3 asic/scripts/run_asic_ppa.py --design lanes1 --periods 40` (regression check
      against serial_mac: should match ~179,700 um2 and ~7.6 mW at 40 ns)
-   - `python asic/scripts/run_asic_ppa.py --design lanes1 lanes2 lanes4 --periods 40 25`
-4. `python asic/scripts/run_asic_ppa.py --collect-only` rebuilds the CSV without running anything.
+   - `python3 asic/scripts/run_asic_ppa.py --design lanes1 lanes2 lanes4 --periods 40 25`
+4. `python3 asic/scripts/run_asic_ppa.py --collect-only` rebuilds the CSV without running anything.
 
 Finished runs are skipped. Every run records the git commit in `runs/<tag>/ppa_meta.json`,
 so commit RTL changes before sweeping. The summary
