@@ -80,6 +80,7 @@ def lanes_of(design):
     return "NA"
 
 def run_one(design, period, extra):
+    period = f"{float(period):g}"          # "40.0" and "40" both mean 40 ns, one folder name
     tag = f"{design}_{period}ns"
     if metrics_path(design, tag).exists():
         print(f"== skipping {tag} (already done)")
@@ -102,23 +103,35 @@ def run_one(design, period, extra):
         print(f"!! {tag} failed (exit {r.returncode}); see asic/{design}/runs/{tag}/")
     return tag
 
-def finished_periods(design):
-    """Periods of every finished run on disk, largest first."""
+def run_dirs(design):
+    """(period, run folder) for every run folder of this design, finished or not, largest period first."""
     found = []
-    for mp in (REPO / f"asic/{design}/runs").glob(f"{design}_*ns/final/metrics.json"):
-        tag = mp.parents[1].name
+    runs = REPO / f"asic/{design}/runs"
+    if not runs.exists():
+        return found
+    for rd in runs.glob(f"{design}_*ns"):
         try:
-            found.append(float(tag[len(design) + 1:-2]))
+            found.append((float(rd.name[len(design) + 1:-2]), rd))
         except ValueError:
             pass
-    return [f"{p:g}" for p in sorted(found, reverse=True)]
+    return sorted(found, key=lambda t: -t[0])
 
-def rows_for(design):
+def last_step(rd):
+    """Name of the last flow step folder LibreLane created in a run (shows where it stopped)."""
+    steps = [d.name for d in rd.iterdir() if d.is_dir() and d.name.split("-")[0].isdigit()]
+    return max(steps, key=lambda n: int(n.split("-")[0])) if steps else "no step folders"
+
+def finished_periods(design):
+    """Periods of every finished run on disk, largest first."""
+    return [f"{p:g}" for p, rd in run_dirs(design) if (rd / "final/metrics.json").exists()]
+
+def rows_for(design, status):
     rows = []
-    for p in finished_periods(design):
-        tag = f"{design}_{p}ns"
-        mp = metrics_path(design, tag)
+    for pv, rd in run_dirs(design):
+        p, tag = f"{pv:g}", rd.name
+        mp = rd / "final/metrics.json"
         if not mp.exists():
+            status.append((tag, "NOT FINISHED", f"stopped at {last_step(rd)}"))
             continue
         m = json.loads(mp.read_text())
         row = {"architecture": design, "lanes": lanes_of(design), "period_ns": p}
@@ -137,6 +150,7 @@ def rows_for(design):
         row["commit"] = json.loads(meta.read_text()).get("commit", "NA") if meta.exists() else "NA"
         row["date"] = datetime.datetime.fromtimestamp(mp.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         rows.append(row)
+        status.append((tag, "ok", f"timing met: {row['timing_met']}"))
         missing = [c for c in METRICS if row[c] == "NA"]
         if missing:
             print(f"   note: {tag} has no value for {missing} - check key names in {mp}")
@@ -144,9 +158,12 @@ def rows_for(design):
 
 def collect():
     """Rebuild the summary CSV from every design's finished runs."""
-    rows = []
+    rows, status = [], []
     for d in all_designs():
-        rows += rows_for(d)
+        rows += rows_for(d, status)
+    print("run status (only 'ok' runs go in the CSV):")
+    for tag, st, note in status:
+        print(f"   {tag:<22} {st:<13} {note}")
     if not rows:
         print("no finished runs to collect")
         return
