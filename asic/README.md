@@ -37,6 +37,9 @@ each time (columns include `architecture` and `lanes`), so one design never over
 
 ## Notes
 
+- Floorplan: the lane designs use FP_CORE_UTIL 25 / PL_TARGET_DENSITY_PCT 35 (set in
+  make_lane_designs.py). With serial_mac's 40 / 50, every LANES >= 2 run failed at global
+  routing or antenna repair on congestion. All lane counts use the same setting.
 - Sky130 has no block RAM: the 117-sample buffer is always flip-flops, and every lane adds
   two more 117:1 read multiplexers. A Yosys generic synthesis (not Sky130 cells) gives
   about 10k cells at LANES = 1 rising roughly linearly to 115k at LANES = 16, so expect

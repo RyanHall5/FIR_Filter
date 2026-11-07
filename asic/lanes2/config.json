@@ -9,7 +9,7 @@
   "CLOCK_PORT": "clk",
   "CLOCK_PERIOD": 20.0,
   "FP_SIZING": "relative",
-  "FP_CORE_UTIL": 40,
-  "PL_TARGET_DENSITY_PCT": 50,
+  "FP_CORE_UTIL": 25,
+  "PL_TARGET_DENSITY_PCT": 35,
   "RUN_LINT": false
 }

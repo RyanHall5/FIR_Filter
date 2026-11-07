@@ -67,6 +67,11 @@ def main():
         (d / f"fir_lanes{n}.v").write_text(WRAPPER.format(n=n))
         cfg = dict(base)
         cfg["DESIGN_NAME"] = f"fir_lanes{n}"
+        # Looser floorplan than serial_mac (40 / 50): at 40 / 50, LANES >= 2 failed global
+        # routing on congestion (the 117:1 buffer read muxes need many tracks). Same value
+        # for every lane count so they are built alike. Cell area excludes the extra filler.
+        cfg["FP_CORE_UTIL"] = 25
+        cfg["PL_TARGET_DENSITY_PCT"] = 35
         cfg["VERILOG_FILES"] = [f"dir::fir_lanes{n}.v"] + list(base["VERILOG_FILES"])
         (d / "config.json").write_text(json.dumps(cfg, indent=2) + "\n")
         print(f"wrote asic/lanes{n}/ (fir_lanes{n}.v, config.json)")
