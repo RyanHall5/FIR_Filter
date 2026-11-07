@@ -176,7 +176,9 @@ def main():
         for d in a.design:
             for p in a.periods:
                 run_one(d, p, a.extra)
-    collect()   # every finished run of every design on disk
+                collect()   # refresh the CSV after each run, so progress is visible
+    else:
+        collect()   # every finished run of every design on disk
 
 if __name__ == "__main__":
     sys.exit(main())
