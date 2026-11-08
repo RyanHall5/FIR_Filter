@@ -85,7 +85,7 @@ if ~isempty(ia)
         names{end+1} = ch(ic).name;                              %#ok<SAGROW>
     end
     opts = struct('nfft', 16384, 'kHz', true, 'ylim', [-120 5], 'edgesHz', unique([ch.f]), ...
-                  'style', 'poster');   % same look as the poster figures
+                  'colors', {{[14 27 44] / 255, [62 106 154] / 255, [143 179 217] / 255}});   % poster channel colours
     plotFilterResponses(hList, names, fs, ...
         sprintf('%d-bit quantized filters, %d dB target', coefBits, ts.asPlot), opts);
 end

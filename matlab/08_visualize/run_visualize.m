@@ -63,11 +63,11 @@ names = cell(1, numel(coeffs));
 for i = 1:numel(coeffs)
     names{i} = sprintf('Channel %d (%g kHz)', i, cfg.fc(i) / 1e3);
 end
-% Poster style (palette, IBM Plex Sans, print size), x axis in kHz with the band
-% edges dashed; also exported for the poster (poster style added with Claude, Anthropic)
+% Standard MATLAB look with the poster's channel colours (navy shades), x axis in kHz
+% with the band edges dashed; also exported for the poster (added with Claude, Anthropic)
 bands    = channelBands(cfg);
 respOpts = struct('nfft', 16384, 'kHz', true, 'ylim', [-100 5], 'edgesHz', unique([bands.f]), ...
-                  'style', 'poster', ...
+                  'colors', {{[14 27 44] / 255, [62 106 154] / 255, [143 179 217] / 255}}, ...
                   'exportBase', fullfile(cfg.resultsDir, '08_visualize', 'fig01_filter_responses'));
 plotFilterResponses(coeffs, names, cfg.fs, 'Channel-select FIR filter frequency responses', respOpts);
 

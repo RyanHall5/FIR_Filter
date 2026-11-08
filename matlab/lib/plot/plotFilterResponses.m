@@ -79,10 +79,10 @@ function fig = plotFilterResponses(hList, names, fs, titleStr, opts)
     xlabel(ax, sprintf('Frequency (%s)', unitStr));
     ylabel(ax, 'Magnitude (dB)');
     ylim(ax, opts.ylim);
-    xlim(ax, [0, fs / 2 / scale]);
     grid(ax, 'on');
 
     if poster
+        xlim(ax, [0, fs / 2 / scale]);
         muted = [90 98 112] / 255;  ink = [31 35 40] / 255;
         set(ax, 'FontName', fn, 'FontSize', opts.fontSize, 'LineWidth', 1.25, 'TickDir', 'out', ...
             'XColor', muted, 'YColor', muted, 'GridColor', [208 213 219] / 255, 'GridAlpha', 1, ...
