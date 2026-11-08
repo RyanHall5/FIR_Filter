@@ -20,7 +20,7 @@ config/config.m           single source of truth for every constant (a function,
 06_hw_demo/               run_hw_demo.m        stream the composite to the STM32/FPGA (needs STM32)
 07_analysis/              run_analysis.m       PLACEHOLDER
 08_visualize/             run_visualize.m      spectra, filter responses, composite plots
-09_ppa_report/            run_ppa_report.m     PLACEHOLDER
+09_ppa_report/            run_ppa_report.m     PPA table + poster Figs. 6-10 from the sweep CSVs
 tests/run_tests.m         runs tests/cases/*   (all PLACEHOLDER tests so far)
 lib/{audio,dsp,fixedpoint,stm32,plot,ppa,util}/   functions only
 data/                     audio, coefficients, vectors, captures, results/<stage>/, ppa_reports/{fpga,asic}

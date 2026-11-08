@@ -80,6 +80,33 @@ function cfg = config()
     cfg.selftest.numChunks = 200;          % chunks of cfg.chunkSamples samples
     cfg.selftest.showPlot  = true;
 
+    % --- Stage 09: PPA report and poster figures (added with Claude, Anthropic) ---
+    % Inputs are the summary CSVs written by fpga/scripts/run_fpga_ppa.tcl and
+    % asic/scripts/run_asic_ppa.py. The ASIC sweep runs in WSL, so copy its
+    % asic_ppa_summary.csv into data/ppa_reports/asic/ before running stage 09.
+    cfg.ppa.fpgaCsv = fullfile(cfg.ppaDir, 'fpga', 'fpga_ppa_summary.csv');
+    cfg.ppa.asicCsv = fullfile(cfg.ppaDir, 'asic', 'asic_ppa_summary.csv');
+    cfg.ppa.lanes           = [1 2 4 8 16];     % LANES values in the sweep
+    cfg.ppa.clocksPerSample = [64 35 20 13 9];  % measured in FIR_Core_Mac_tb (sample_valid -> out_valid)
+    cfg.ppa.fpgaVariant     = 'dsp';            % FPGA build shown on the poster ('dsp' or 'nodsp')
+    cfg.ppa.refPeriodNs     = 40;               % 25 MHz operating point: area and power are taken here
+    cfg.ppa.asicFailedLanes = 8;                % ASIC lane counts that did not route (marked on figures)
+    cfg.ppa.requiredMsps    = cfg.fs / 1e6;     % sample-rate requirement (0.096 MS/s)
+    cfg.ppa.colors.fpga  = [15 139 141] / 255;  % teal   #0F8B8D
+    cfg.ppa.colors.asic  = [200 105 44] / 255;  % copper #C8692C
+    cfg.ppa.colors.navy  = [14 27 44] / 255;    % navy   #0E1B2C
+    cfg.ppa.colors.text  = [31 35 40] / 255;    % charcoal #1F2328
+    cfg.ppa.colors.muted = [90 98 112] / 255;   % slate  #5A6270
+    cfg.ppa.colors.grid  = [208 213 219] / 255; % light grey #D0D5DB
+    cfg.ppa.font     = 'IBM Plex Sans';         % falls back to Helvetica if not installed
+    cfg.ppa.fontSize = 24;                      % pt at final print size (poster minimum)
+    % Figure sizes in inches at print size [width height], to match the poster layout
+    cfg.ppa.figSize.area      = [12.5 3.9];     % Fig. 6, centre column
+    cfg.ppa.figSize.speed     = [12.5 3.9];     % Fig. 7, centre column
+    cfg.ppa.figSize.energy    = [8.5 3.0];      % Fig. 8, right column
+    cfg.ppa.figSize.power     = [8.5 2.7];      % Fig. 9, right column
+    cfg.ppa.figSize.areaSplit = [8.5 2.7];      % Fig. 10, right column
+
     % --- Which stages run_all executes ---
     cfg.run.tapStudy      = false;
     cfg.run.coefficients  = false;
@@ -90,5 +117,5 @@ function cfg = config()
     cfg.run.hwVectorTest  = false;   % needs the STM32 and FPGA connected; bit-exact test with the golden vectors
     cfg.run.analysis      = true;   % placeholder stage
     cfg.run.visualize     = false;
-    cfg.run.ppaReport     = false;   % placeholder stage
+    cfg.run.ppaReport     = false;   % poster figures from the PPA summary CSVs
 end
