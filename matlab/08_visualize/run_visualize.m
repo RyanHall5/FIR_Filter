@@ -61,9 +61,15 @@ coeffs = loaded.coeffs;
 
 names = cell(1, numel(coeffs));
 for i = 1:numel(coeffs)
-    names{i} = sprintf('Ch%d (fc=%d Hz)', i, cfg.fc(i));
+    names{i} = sprintf('Channel %d (%g kHz)', i, cfg.fc(i) / 1e3);
 end
-plotFilterResponses(coeffs, names, cfg.fs, 'Channel-select FIR filter frequency responses');
+% Poster style (palette, IBM Plex Sans, print size), x axis in kHz with the band
+% edges dashed; also exported for the poster (poster style added with Claude, Anthropic)
+bands    = channelBands(cfg);
+respOpts = struct('nfft', 16384, 'kHz', true, 'ylim', [-100 5], 'edgesHz', unique([bands.f]), ...
+                  'style', 'poster', ...
+                  'exportBase', fullfile(cfg.resultsDir, '08_visualize', 'fig01_filter_responses'));
+plotFilterResponses(coeffs, names, cfg.fs, 'Channel-select FIR filter frequency responses', respOpts);
 
 % =========================================================================
 % ---- Filtered channel outputs (each filter applied to the composite) ----

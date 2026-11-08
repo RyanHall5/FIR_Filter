@@ -84,7 +84,8 @@ if ~isempty(ia)
         hList{end+1} = res(ia, ic).hq / 2^res(ia, ic).shift;   %#ok<SAGROW>
         names{end+1} = ch(ic).name;                              %#ok<SAGROW>
     end
-    opts = struct('nfft', 16384, 'kHz', true, 'ylim', [-120 5], 'edgesHz', unique([ch.f]));
+    opts = struct('nfft', 16384, 'kHz', true, 'ylim', [-120 5], 'edgesHz', unique([ch.f]), ...
+                  'style', 'poster');   % same look as the poster figures
     plotFilterResponses(hList, names, fs, ...
         sprintf('%d-bit quantized filters, %d dB target', coefBits, ts.asPlot), opts);
 end
