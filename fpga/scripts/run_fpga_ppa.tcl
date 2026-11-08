@@ -49,14 +49,14 @@ set part       xc7a35tcpg236-1
 # One architecture per LANES value, all from the same FIR_Core_MAC source: the LANES
 # parameter is passed to synthesis as a generic. Results are labelled lanes<N>
 # (lanes1 is the serial MAC). Edit lanes_list to choose which ones to sweep.
-set lanes_list {1 2 4 8 16 59}
+set lanes_list {1 2 4 8 16}
 set archs [dict create]
 foreach L $lanes_list {
     dict set archs lanes$L [dict create top FIR_Core_MAC \
         files {FIR_Core_MAC.v coef_rom.v sample_buffer.v} generics "LANES=$L"]
 }
 set variants {dsp nodsp}
-set periods  {40.0 30.0 25.0 20.0 10.0 8.0 6.0 5.0}      ;# target clock periods in ns
+set periods  {40.0 30.0 25.0 20.0 10.0 8.0 6.0 5.0}      ;# target clock periods in ns      
 set jobs     4                        ;# parallel jobs for synthesis and implementation
 set keep_projects 0                   ;# 1 keeps the scratch projects
 set rerun_all     0                   ;# 0 skips runs that already have a summary.csv (so a second

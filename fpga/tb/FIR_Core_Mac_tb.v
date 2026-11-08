@@ -35,7 +35,7 @@ module FIR_Core_MAC_tb;
     localparam ACC_W     = 39;
     localparam SHIFT     = 16;
     localparam TAP_COUNT = 59;
-    localparam LANES     = 59;        // taps per clock: 1 = serial MAC. Try 1, 2, 4, 6, 8, 50, 59
+    localparam LANES     = 16;        // taps per clock: 1 = serial MAC. Try 1, 2, 4, 6, 8, 50, 59
 
     localparam MAX_SAMPLES = 8192;   // longest vector (noise, composite)
     localparam GAP_CLKS    = 70;     // clocks between sample_valid pulses (must exceed the core's
