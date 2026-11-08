@@ -98,14 +98,19 @@ function cfg = config()
     cfg.ppa.colors.text  = [31 35 40] / 255;    % charcoal #1F2328
     cfg.ppa.colors.muted = [90 98 112] / 255;   % slate  #5A6270
     cfg.ppa.colors.grid  = [208 213 219] / 255; % light grey #D0D5DB
-    cfg.ppa.font     = 'IBM Plex Sans';         % falls back to Helvetica if not installed
-    cfg.ppa.fontSize = 24;                      % pt at final print size (poster minimum)
-    % Figure sizes in inches at print size [width height], to match the poster layout
-    cfg.ppa.figSize.area      = [12.5 3.9];     % Fig. 6, centre column
-    cfg.ppa.figSize.speed     = [12.5 3.9];     % Fig. 7, centre column
-    cfg.ppa.figSize.energy    = [8.5 3.0];      % Fig. 8, right column
-    cfg.ppa.figSize.power     = [8.5 2.7];      % Fig. 9, right column
-    cfg.ppa.figSize.areaSplit = [8.5 2.7];      % Fig. 10, right column
+    cfg.ppa.font            = 'IBM Plex Sans';  % falls back to Helvetica if not installed
+    cfg.ppa.fontSize        = 24;               % pt: tick labels, axis labels (poster minimum)
+    cfg.ppa.titleFontSize   = 28;               % pt: figure title (the finding)
+    cfg.ppa.keyFontSize     = 20;               % pt: colour key, value labels, requirement line
+    cfg.ppa.captionFontSize = 20;               % pt: caption under each figure
+    cfg.ppa.titleIn         = 0.95;             % in: band for the title (fits two lines)
+    cfg.ppa.captionIn       = 0.9;              % in: band for the caption (fits two to three lines)
+    % Figure sizes in inches at print size [width height]; titles and captions wrap to the width
+    cfg.ppa.figSize.area      = [12.5 5.25];    % Fig. 6, centre column (two panels)
+    cfg.ppa.figSize.speed     = [12.5 5.25];    % Fig. 7, centre column
+    cfg.ppa.figSize.energy    = [8.5 4.3];      % Fig. 8, right column
+    cfg.ppa.figSize.power     = [8.5 4.0];      % Fig. 9, right column
+    cfg.ppa.figSize.areaSplit = [8.5 4.0];      % Fig. 10, right column
 
     % --- Which stages run_all executes ---
     cfg.run.tapStudy      = false;
