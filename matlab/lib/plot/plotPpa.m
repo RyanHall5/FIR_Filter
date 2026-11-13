@@ -1,242 +1,256 @@
 function plotPpa(T, cfg, outDir)
-% plotPpa  Draw the poster's result charts (Figs. 6 to 10) from the PPA table.
+% plotPpa  Draw the poster's four result charts (Figs. 6 to 9) from the PPA table.
 %
 %   plotPpa(T, cfg, outDir)
 %
 %   AI note: written by Claude (Anthropic) for Ryan Hall's FIR_Filter project.
 %
 %   T       table from buildPpaTable (one row per platform and LANES value)
-%   cfg     config(); colours, fonts, sizes and the 96 kHz requirement come from cfg.ppa
-%   outDir  folder for the exports: each figure is saved as a vector PDF (for the poster)
-%           and a 300 dpi PNG (for previews)
+%   cfg     config(); data settings in cfg.ppa, the shared chart look in cfg.poster
+%   outDir  folder for the PNGs
 %
-%   Every figure has a title that states its finding and a caption that says what is
-%   plotted. Figures are drawn at their final print size (cfg.ppa.figSize, inches), so
-%   font sizes are real point sizes on the poster. FPGA is teal and ASIC copper; the
-%   x axis is always the number of lanes, evenly spaced.
+%   Each chart is drawn at the exact size of its slot on the poster (cfg.poster.figSize.result)
+%   and exported as a PNG that drops straight into the card. The charts have no title and no
+%   caption, because the poster card already carries both. All four share one pattern
+%   (lib/plot/posterKit.m):
+%     * header row: what the y axis measures (left) and the colour key (right)
+%     * x axis: number of lanes, evenly spaced, always the full set in cfg.ppa.lanes
+%     * FPGA teal, ASIC copper; values printed at the marks; text in ink, never in a series colour
+%     * ASIC lane counts in cfg.ppa.asicFailedLanes are marked "did not route"
 %
-%     fig06_area_vs_lanes    FPGA LUTs and ASIC cell area, two panels in absolute units
-%     fig07_speed_vs_lanes   max sample rate, with the 96 kHz requirement
-%     fig08_energy_vs_lanes  energy per sample (FPGA dynamic, ASIC total)
-%     fig09_power_25mhz      power at 25 MHz: FPGA static + dynamic vs ASIC total
-%     fig10_asic_area_split  ASIC cell area by cell type, and the lane count that did not route
+%     fig06_area     left: FPGA LUTs; right: ASIC cell area stacked by cell type
+%     fig07_speed    max sample rate (log axis) with the sample-rate requirement
+%     fig08_energy   energy per sample (FPGA dynamic power, ASIC total power)
+%     fig09_power    power at the reference clock: FPGA static + dynamic beside ASIC total
 
-    p  = cfg.ppa;
-    c  = p.colors;
-    fn = pickFont(p.font);
+    p   = cfg.ppa;
+    kit = posterKit(cfg);
+    st  = kit.st;
+    c   = st.colors;
     if ~exist(outDir, 'dir'), mkdir(outDir); end
 
     F = sortrows(T(T.platform == "FPGA", :), 'lanes');
     A = sortrows(T(T.platform == "ASIC", :), 'lanes');
     lanes = p.lanes(:);
-    pos   = @(L) arrayfun(@(v) find(lanes == v), L);   % evenly spaced x position of a lane count
-    xLab  = 'Number of lanes';
-    keyF  = 'FPGA (Artix-7)';
-    keyA  = 'ASIC (Sky130)';
-    refMHz = 1e3 / p.refPeriodNs;
+    n     = numel(lanes);
+    pos   = @(L) arrayfun(@(v) find(lanes == v), L);     % evenly spaced x position of a lane count
+    xF    = pos(F.lanes);
+    xA    = pos(A.lanes);
+    failLanes = intersect(p.asicFailedLanes(:), lanes);  % ASIC lane counts that did not route
+    failX     = pos(failLanes);
 
-    % ---------------- Fig. 6: area vs lanes (two panels, absolute units) ----------------
-    [fig, reg] = newCanvas(p.figSize.area, p, fn, ...
-        'Area grows alike up to 4 lanes; at 8 the FPGA''s sample buffer leaves block RAM', ...
-        sprintf(['FPGA: LUTs used on the Artix-7 (DSP build). ASIC: Sky130 standard-cell area. ' ...
-                 'Both at a %g ns (%g MHz) clock. From 8 lanes Vivado builds the 117-sample ' ...
-                 'buffer from LUTs instead of block RAM.'], p.refPeriodNs, refMHz));
-    ax1 = newAxes(fig, [reg(1), reg(2), reg(3) / 2, reg(4)], p, fn);
-    plotSeries(ax1, pos(F.lanes), F.area, c.fpga, 'o', @(v) commaInt(v), p, fn);
-    lanesAxis(ax1, lanes, xLab);
-    ax1.YLim = [0, niceTop(max(F.area))];
-    ax1.YAxis.Exponent = 0;
-    ax1.YTickLabel = arrayfun(@commaInt, ax1.YTick, 'UniformOutput', false);
-    ylabel(ax1, 'LUTs');
-    panelTitle(ax1, keyF, c.fpga, p, fn);
-    ax2 = newAxes(fig, [reg(1) + reg(3) / 2, reg(2), reg(3) / 2, reg(4)], p, fn);
-    plotSeries(ax2, pos(A.lanes), A.area / 1e6, c.asic, 's', @(v) sprintf('%.2f', v), p, fn);
-    lanesAxis(ax2, lanes, xLab);
-    ax2.YLim = [0, niceTop(max(A.area / 1e6))];
-    ylabel(ax2, 'Cell area (mm^2)');
-    panelTitle(ax2, keyA, c.asic, p, fn);
-    exportFig(fig, outDir, 'fig06_area_vs_lanes');
+    % Geometry shared by all four charts (inches)
+    sz    = st.figSize.result;
+    W     = sz(1);
+    H     = sz(2);
+    ph    = H - st.botIn - st.headIn;                                  % plot height
+    yHead = st.botIn + ph + 0.22;                                      % centre line of the header row
+    full  = [st.leftIn, st.botIn, W - st.leftIn - st.rightIn, ph];     % plot area of a one-panel chart
+    keyF  = keyItem(c.fpga, 'FPGA', 'o');
+    keyA  = keyItem(c.asic, 'ASIC', 's');
+    centred = {'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom'};
 
-    % ---------------- Fig. 7: max sample rate vs lanes ----------------
-    shared = intersect(F.lanes, A.lanes);
-    ratio  = F.maxRateMsps(ismember(F.lanes, shared)) ./ A.maxRateMsps(ismember(A.lanes, shared));
-    [fig, reg] = newCanvas(p.figSize.speed, p, fn, ...
-        sprintf('The FPGA is %.0f to %.0f times faster; both clear %g kHz with room to spare', ...
-                round(min(ratio)), round(max(ratio)), p.requiredMsps * 1e3), ...
-        ['Max sample rate = Fmax / clocks per sample, with clocks per sample measured in ' ...
-         'simulation (64, 35, 20, 13, 9). FPGA Fmax from the fastest clock that met timing; ' ...
-         sprintf('ASIC Fmax from the %g ns run.', p.refPeriodNs)]);
-    ax = newAxes(fig, reg, p, fn);
-    hF = plotSeries(ax, pos(F.lanes), F.maxRateMsps, c.fpga, 'o', @(v) sprintf('%.1f', v), p, fn);
-    hA = plotSeries(ax, pos(A.lanes), A.maxRateMsps, c.asic, 's', @(v) sprintf('%.2g', v), p, fn);
-    lanesAxis(ax, lanes, xLab);
-    ax.YLim = [0, niceTop(max(F.maxRateMsps))];
-    ylabel(ax, 'Max sample rate (MS/s)');
-    yline(ax, p.requiredMsps, '--', sprintf('%g kHz requirement', p.requiredMsps * 1e3), ...
-        'Color', c.muted, 'LineWidth', 1.5, 'FontName', fn, 'FontSize', p.keyFontSize, ...
-        'LabelHorizontalAlignment', 'right', 'LabelVerticalAlignment', 'top');
-    smallKey(ax, [hF, hA], {keyF, keyA}, 'northeast', p, fn);
-    exportFig(fig, outDir, 'fig07_speed_vs_lanes');
+    % ---------------- Fig. 6: area (two panels, each in its own unit) ----------------
+    gap = 0.66;                                            % between the panels: the right panel's axis numbers
+    w1  = 0.49 * (W - st.leftIn - gap - st.rightIn);
+    l2  = st.leftIn + w1 + gap;
+    w2  = W - l2 - st.rightIn;
+    fig = kit.newFigure('Fig. 6 area', sz);
 
-    % ---------------- Fig. 8: energy per sample vs lanes ----------------
-    [fig, reg] = newCanvas(p.figSize.energy, p, fn, ...
-        {'More lanes cut energy per sample', 'on the ASIC, but not on the FPGA'}, ...
-        ['Energy per sample = power x clock period x clocks per sample. FPGA: dynamic power ' ...
-         'only. ASIC: total power. Both are tool estimates with default switching activity.']);
-    ax = newAxes(fig, reg, p, fn);
-    hF = plotSeries(ax, pos(F.lanes), F.energyPerSample_nJ, c.fpga, 'o', @(v) sprintf('%.1f', v), p, fn);
-    hA = plotSeries(ax, pos(A.lanes), A.energyPerSample_nJ, c.asic, 's', @(v) sprintf('%.1f', v), p, fn);
-    lanesAxis(ax, lanes, xLab);
-    ax.YLim = [0, niceTop(max([F.energyPerSample_nJ; A.energyPerSample_nJ]))];
-    ylabel(ax, 'Energy per sample (nJ)');
-    smallKey(ax, [hF, hA], {keyF, keyA}, 'north', p, fn);
-    exportFig(fig, outDir, 'fig08_energy_vs_lanes');
-
-    % ---------------- Fig. 9: power at 25 MHz ----------------
-    Fs = F(ismember(F.lanes, shared), :);
-    As = A(ismember(A.lanes, shared), :);
-    x  = pos(shared);
-    [fig, reg] = newCanvas(p.figSize.power, p, fn, ...
-        {sprintf('At %g MHz the FPGA draws about %.0fx', refMHz, Fs.power_mW(1) / As.power_mW(1)), ...
-         'the ASIC''s power, almost all of it static'}, ...
-        sprintf(['Total power at a %g ns (%g MHz) clock. FPGA static power is the whole ' ...
-                 'Artix-7''s leakage, paid whether or not the filter is busy.'], p.refPeriodNs, refMHz));
-    ax = newAxes(fig, reg, p, fn);
-    bF = bar(ax, x - 0.2, [Fs.static_mW, Fs.dynamic_mW], 0.35, 'stacked', 'EdgeColor', 'none');
-    bF(1).FaceColor = mix(c.fpga, 0.55);
-    bF(2).FaceColor = c.fpga;
-    bA = bar(ax, x + 0.2, As.power_mW, 0.35, 'FaceColor', c.asic, 'EdgeColor', 'none');
-    for i = 1:numel(x)
-        valueLabel(ax, x(i) - 0.2, Fs.power_mW(i), sprintf('%.0f', Fs.power_mW(i)), p, fn);
-        valueLabel(ax, x(i) + 0.2, As.power_mW(i), sprintf('%.0f', As.power_mW(i)), p, fn);
+    % Left: FPGA LUTs. Extra headroom for the block-RAM bracket.
+    ax1 = kit.newAxes(fig, [st.leftIn, st.botIn, w1, ph]);
+    [top, ticks, labels] = linearScale(max(F.area), ph, 0.50);
+    kit.yAxis(ax1, [0, top], ticks, labels);
+    bar(ax1, xF, F.area, st.barWidth, 'FaceColor', c.fpga, 'EdgeColor', 'none', 'ShowBaseLine', 'off');
+    kit.lanesAxis(ax1, lanes);
+    for i = 1:numel(xF)
+        kit.valueLabel(ax1, xF(i), F.area(i), commaInt(F.area(i)));
     end
-    lanesAxis(ax, lanes(1:max(x)), xLab);
-    ax.YLim = [0, niceTop(max(Fs.power_mW))];
-    ylabel(ax, 'Power (mW)');
-    smallKey(ax, [bF(1), bF(2), bA], {'FPGA static', 'FPGA dynamic', 'ASIC'}, 'eastoutside', p, fn);
-    exportFig(fig, outDir, 'fig09_power_25mhz');
-
-    % ---------------- Fig. 10: ASIC area by cell type, and where it stops routing ----------------
-    M  = [A.comb_um2, A.seq_um2, A.repair_um2, A.clock_um2, A.tap_um2] / 1e6;   % mm^2
-    xa = pos(A.lanes);
-    failX = p.asicFailedLanes(:);
-    [fig, reg] = newCanvas(p.figSize.areaSplit, p, fn, ...
-        {'Logic, not flip-flops, grows with lanes,', sprintf('until %d lanes cannot be routed', failX(1))}, ...
-        sprintf(['Sky130 cell area at %g ns by cell type. Logic is mostly the sample buffer''s read ' ...
-                 'multiplexers and the lane multipliers. %d lanes failed global routing at 25%% ' ...
-                 'core utilization.'], p.refPeriodNs, failX(1)));
-    ax = newAxes(fig, reg, p, fn);
-    b = bar(ax, xa, M, 0.6, 'stacked', 'EdgeColor', 'none');
-    b(1).FaceColor = c.asic;            % logic: multiplexers, multipliers, adders
-    b(2).FaceColor = c.navy;            % flip-flops (mostly the sample buffer)
-    b(3).FaceColor = mix(c.asic, 0.5);  % timing-repair buffers
-    b(4).FaceColor = c.muted;           % clock tree
-    b(5).FaceColor = c.grid;            % tap cells
-    tot = sum(M, 2);
-    for i = 1:numel(xa)
-        valueLabel(ax, xa(i), tot(i), sprintf('%.2f', tot(i)), p, fn);
+    inRam = xF(F.bram > 0);                                % lane counts whose sample buffer is still in block RAM
+    if ~isempty(inRam) && numel(inRam) < numel(xF)
+        x0 = min(inRam) - 0.30;
+        x1 = max(inRam) + 0.30;
+        yb = kit.yShift(ax1, top, -0.60);
+        yt = kit.yShift(ax1, top, -0.67);
+        plot(ax1, [x0, x0, x1, x1], [yt, yb, yb, yt], '-', 'Color', c.muted, 'LineWidth', 1);
+        kit.note(ax1, (x0 + x1) / 2, kit.yShift(ax1, top, -0.54), {'buffer in', 'block RAM'}, centred{:});
     end
-    top = niceTop(max(tot));
+
+    % Right: ASIC cell area by cell type. "Buffers" is everything that is not logic or a
+    % flip-flop (timing-repair buffers, clock tree, tap cells, antenna diodes), so the stack
+    % adds up to the reported cell area.
+    ax2  = kit.newAxes(fig, [l2, st.botIn, w2, ph]);
+    seq  = A.seq_um2  / 1e6;                               % mm^2
+    comb = A.comb_um2 / 1e6;
+    tot  = A.area     / 1e6;
+    rest = tot - seq - comb;
+    [top, ticks, labels] = linearScale(max(tot), ph, st.labelRoomIn);
+    kit.yAxis(ax2, [0, top], ticks, labels);
+    b = bar(ax2, xA, [seq, comb, rest], st.barWidth, 'stacked', 'EdgeColor', 'none', 'ShowBaseLine', 'off');
+    set(b(1), 'FaceColor', c.navy);         % flip-flops (mostly the sample buffer): at the bottom, where "flat" is easy to see
+    set(b(2), 'FaceColor', c.asic);         % logic: read multiplexers, multipliers, adders
+    set(b(3), 'FaceColor', c.asicLight);    % buffers and the rest
+    segmentGaps(ax2, xA, [seq, seq + comb], st.barWidth);
+    kit.lanesAxis(ax2, lanes);
+    for i = 1:numel(xA)
+        kit.valueLabel(ax2, xA(i), tot(i), sprintf('%.2f', tot(i)));
+    end
     for j = 1:numel(failX)
-        text(ax, pos(failX(j)), 0.25 * top, {'did not', 'route'}, 'Color', c.asic, 'FontWeight', 'bold', ...
-            'HorizontalAlignment', 'center', 'FontName', fn, 'FontSize', p.fontSize);
+        kit.note(ax2, failX(j), kit.yShift(ax2, 0, 0.07), {'did not', 'route'}, centred{:});
     end
-    lanesAxis(ax, lanes(1:max([xa; pos(failX)])), xLab);
-    ax.YLim = [0, top];
-    ylabel(ax, 'Cell area (mm^2)');
-    smallKey(ax, flip(b), flip({'Logic', 'Flip-flops', 'Timing buffers', 'Clock tree', 'Tap cells'}), ...
-        'eastoutside', p, fn);
-    exportFig(fig, outDir, 'fig10_asic_area_split');
+
+    ov = kit.overlay(fig);
+    kit.header(ov, st.headerXIn, yHead, 'FPGA', 'LUTs used');
+    kit.header(ov, l2 - 0.47, yHead, 'ASIC', ['cell area (mm' char(178) ')']);
+    kit.keyColumn(ov, l2 + w2, st.botIn + ph - 0.13, ...
+        [keyItem(c.asicLight, 'Buffers', 'bar'), keyItem(c.asic, 'Logic', 'bar'), keyItem(c.navy, 'Flip-flops', 'bar')]);
+    kit.export(fig, outDir, 'fig06_area');
+
+    % ---------------- Fig. 7: max sample rate (log axis: equal ratios are equal distances) ----------------
+    req = p.requiredMsps;
+    lo  = req / 2;
+    hi  = 3 * max([F.maxRateMsps; A.maxRateMsps]);
+    dec = 10 .^ (ceil(log10(lo)):floor(log10(hi)));
+    fig = kit.newFigure('Fig. 7 speed', sz);
+    ax  = kit.newAxes(fig, full);
+    set(ax, 'YScale', 'log');
+    kit.yAxis(ax, [lo, hi], dec, compose('%g', dec(:)));
+    set(ax, 'YMinorTick', 'off', 'YMinorGrid', 'off');
+    plot(ax, [0.5, n + 0.5], [req, req], '--', 'Color', c.navy, 'LineWidth', 1.5);
+    kit.series(ax, xF, F.maxRateMsps, c.fpga, 'o');
+    kit.series(ax, xA, A.maxRateMsps, c.asic, 's');
+    kit.lanesAxis(ax, lanes);
+    whereF = 'above';
+    whereA = 'below';
+    if mean(A.maxRateMsps) > mean(F.maxRateMsps)
+        whereF = 'below';
+        whereA = 'above';
+    end
+    labelSeries(kit, ax, xF, F.maxRateMsps, @rateStr, whereF);
+    labelSeries(kit, ax, xA, A.maxRateMsps, @rateStr, whereA);
+    kit.note(ax, n + 0.45, kit.yShift(ax, req, 0.06), sprintf('%g kHz required', req * 1e3), ...
+        'Color', c.navy, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'baseline');
+    asicEndNote(kit, ax, n, A.maxRateMsps, failLanes);
+    ov = kit.overlay(fig);
+    kit.header(ov, st.headerXIn, yHead, '', 'Max sample rate (MS/s, log scale)');
+    kit.keyRow(ov, W - st.rightIn, yHead, [keyF, keyA]);
+    kit.export(fig, outDir, 'fig07_speed');
+
+    % ---------------- Fig. 8: energy per sample ----------------
+    fig = kit.newFigure('Fig. 8 energy', sz);
+    ax  = kit.newAxes(fig, full);
+    [top, ticks, labels] = linearScale(max([F.energyPerSample_nJ; A.energyPerSample_nJ]), ph, st.labelRoomIn);
+    kit.yAxis(ax, [0, top], ticks, labels);
+    kit.series(ax, xF, F.energyPerSample_nJ, c.fpga, 'o');
+    kit.series(ax, xA, A.energyPerSample_nJ, c.asic, 's');
+    kit.lanesAxis(ax, lanes);
+    labelSeries(kit, ax, xF, F.energyPerSample_nJ, @(v) sprintf('%.1f', v), 'above');
+    labelSeries(kit, ax, xA, A.energyPerSample_nJ, @(v) sprintf('%.1f', v), 'above');
+    asicEndNote(kit, ax, n, A.energyPerSample_nJ, failLanes);
+    ov = kit.overlay(fig);
+    kit.header(ov, st.headerXIn, yHead, '', 'Energy per sample (nJ)');
+    kit.keyRow(ov, W - st.rightIn, yHead, [keyF, keyA]);
+    kit.export(fig, outDir, 'fig08_energy');
+
+    % ---------------- Fig. 9: power at the reference clock ----------------
+    % Vivado reports static, dynamic and total power each rounded to 1 mW, so static + dynamic
+    % can be 1 mW short of the total. The dynamic segment is drawn as total - static so every
+    % bar reaches the total printed above it.
+    bw  = st.pairBarWidth;
+    off = st.pairOffset;
+    fig = kit.newFigure('Fig. 9 power', sz);
+    ax  = kit.newAxes(fig, full);
+    [top, ticks, labels] = linearScale(max([F.power_mW; A.power_mW]), ph, st.labelRoomIn);
+    kit.yAxis(ax, [0, top], ticks, labels);
+    bF = bar(ax, xF - off, [F.static_mW, F.power_mW - F.static_mW], bw, 'stacked', ...
+        'EdgeColor', 'none', 'ShowBaseLine', 'off');
+    set(bF(1), 'FaceColor', c.fpgaLight);
+    set(bF(2), 'FaceColor', c.fpga);
+    segmentGaps(ax, xF - off, F.static_mW, bw);
+    bar(ax, xA + off, A.power_mW, bw, 'FaceColor', c.asic, 'EdgeColor', 'none', 'ShowBaseLine', 'off');
+    kit.lanesAxis(ax, lanes);
+    for i = 1:numel(xF)
+        kit.valueLabel(ax, xF(i) - off, F.power_mW(i), sprintf('%.0f', F.power_mW(i)));
+    end
+    for i = 1:numel(xA)
+        kit.valueLabel(ax, xA(i) + off, A.power_mW(i), sprintf('%.0f', A.power_mW(i)));
+    end
+    for j = 1:numel(failX)
+        kit.note(ax, failX(j) + 0.30, kit.yShift(ax, 0, 0.07), {'did not', 'route'}, centred{:});
+    end
+    ov = kit.overlay(fig);
+    kit.header(ov, st.headerXIn, yHead, '', 'Power (mW)');
+    kit.keyRow(ov, W - st.rightIn, yHead, ...
+        [keyItem(c.fpgaLight, 'FPGA static', 'bar'), keyItem(c.fpga, 'FPGA dynamic', 'bar'), keyItem(c.asic, 'ASIC', 'bar')]);
+    kit.export(fig, outDir, 'fig09_power');
 end
 
 % -------------------------------------------------------------------------
-function [fig, region] = newCanvas(sz, p, fn, titleText, caption)
-% A figure at print size with a title band on top and a caption band at the bottom;
-% region = normalized [x y w h] left for the axes.
-    c   = p.colors;
-    fig = figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 sz]);
-    tFrac = p.titleIn   / sz(2);
-    cFrac = p.captionIn / sz(2);
-    annotation(fig, 'textbox', [0.01, 1 - tFrac, 0.98, tFrac], 'String', titleText, ...
-        'EdgeColor', 'none', 'FontName', fn, 'FontSize', p.titleFontSize, 'FontWeight', 'bold', ...
-        'Color', c.text, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Interpreter', 'none');
-    annotation(fig, 'textbox', [0.01, 0, 0.98, cFrac], 'String', caption, ...
-        'EdgeColor', 'none', 'FontName', fn, 'FontSize', p.captionFontSize, 'Color', c.muted, ...
-        'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Interpreter', 'none');
-    region = [0, cFrac, 1, 1 - cFrac - tFrac];
+function s = keyItem(col, label, kind)
+    s = struct('color', col, 'label', label, 'kind', kind);
 end
 
-function ax = newAxes(fig, outerPos, p, fn)
-    c  = p.colors;
-    ax = axes(fig, 'OuterPosition', outerPos);
-    hold(ax, 'on');
-    box(ax, 'off');
-    set(ax, 'FontName', fn, 'FontSize', p.fontSize, 'LineWidth', 1.25, 'TickDir', 'out', ...
-        'XColor', c.muted, 'YColor', c.muted, 'GridColor', c.grid, 'GridAlpha', 1, ...
-        'YGrid', 'on', 'LabelFontSizeMultiplier', 1, 'TitleFontSizeMultiplier', 1);
-    ax.XLabel.Color = c.text;
-    ax.YLabel.Color = c.text;
+function [top, ticks, labels] = linearScale(vmax, plotIn, roomIn)
+% Zero-based axis: top leaves roomIn inches above the largest value for its printed number;
+% at most three ticks above zero, on a 1-2-5 step. Thousands are written as 10k, 20k.
+    top  = vmax / (1 - roomIn / plotIn);
+    k    = 10 ^ floor(log10(top));
+    cand = [0.1, 0.2, 0.5, 1, 2, 5, 10] * k;
+    step = cand(find(floor(top ./ cand + 1e-9) <= 3, 1));
+    ticks = 0:step:top;
+    if step >= 1000
+        labels = compose('%gk', ticks(:) / 1000);
+    else
+        labels = compose('%g', ticks(:));
+    end
+    labels{1} = '0';
 end
 
-function h = plotSeries(ax, x, y, col, mk, fmt, p, fn)
-    h = plot(ax, x, y, ['-' mk], 'Color', col, 'LineWidth', 3, 'MarkerSize', 11, ...
-        'MarkerFaceColor', col, 'MarkerEdgeColor', 'w');
+function labelSeries(kit, ax, x, y, fmt, where)
+% Print every value of a line series. A value whose line leaves steeply upward to the
+% right is moved to the left of its marker so the line does not run through the digits.
+    pos = get(ax, 'Position');   % inches
+    xl  = get(ax, 'XLim');
+    yl  = get(ax, 'YLim');
+    xin = (x - xl(1)) / diff(xl) * pos(3);
+    if strcmp(get(ax, 'YScale'), 'log')
+        yin = log10(y / yl(1)) / log10(yl(2) / yl(1)) * pos(4);
+    else
+        yin = (y - yl(1)) / diff(yl) * pos(4);
+    end
     for i = 1:numel(x)
-        valueLabel(ax, x(i), y(i), fmt(y(i)), p, fn);
+        wh = where;
+        if strcmp(where, 'above') && i < numel(x) && (yin(i + 1) - yin(i)) > 0.5 * (xin(i + 1) - xin(i))
+            wh = 'aboveLeft';
+        end
+        kit.valueLabel(ax, x(i), y(i), fmt(y(i)), wh, kit.st.lineLabelGapIn);
     end
 end
 
-function valueLabel(ax, x, y, str, p, fn)
-% Small value label just above a point or bar
-    text(ax, x, y, str, 'Color', p.colors.text, 'FontName', fn, 'FontSize', p.keyFontSize, ...
-        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Margin', 6);
+function asicEndNote(kit, ax, n, yAsic, failLanes)
+% Where the ASIC line stops short: say why, at the right edge, hanging from the level of its last point
+    if isempty(failLanes) || isempty(yAsic), return; end
+    kit.note(ax, n + 0.45, yAsic(end), {sprintf('ASIC: %d lanes', failLanes(1)), 'did not route'}, ...
+        'HorizontalAlignment', 'right', 'VerticalAlignment', 'top');
 end
 
-function lanesAxis(ax, lanes, xLab)
-% Lane counts at evenly spaced positions 1..n
-    n = numel(lanes);
-    set(ax, 'XTick', 1:n, 'XTickLabel', compose('%d', lanes(:)), 'XLim', [0.5, n + 0.5], ...
-        'XMinorTick', 'off', 'YMinorTick', 'off');
-    xlabel(ax, xLab);
+function segmentGaps(ax, x, yBounds, bw)
+% Thin white line at each boundary inside a stacked bar (yBounds: one column per boundary)
+    for i = 1:numel(x)
+        for j = 1:size(yBounds, 2)
+            plot(ax, x(i) + [-bw, bw] / 2, yBounds(i, j) * [1, 1], '-', 'Color', 'w', 'LineWidth', 1.5);
+        end
+    end
 end
 
-function panelTitle(ax, str, col, p, fn)
-    title(ax, str, 'Color', col, 'FontName', fn, 'FontSize', p.fontSize, 'FontWeight', 'bold');
-end
-
-function smallKey(ax, h, names, where, p, fn)
-    legend(ax, h, names, 'Location', where, 'Box', 'off', 'FontName', fn, ...
-        'FontSize', p.keyFontSize, 'TextColor', p.colors.muted, 'AutoUpdate', 'off');
-end
-
-function t = niceTop(v)
-% Axis top with ~20% headroom for value labels, rounded to 1, 2 or 5 x 10^k
-    v = 1.2 * v;
-    k = 10 ^ floor(log10(v));
-    steps = [1 2 2.5 5 10] * k;
-    t = steps(find(steps >= v, 1));
+function s = rateStr(v)
+    if v < 1
+        s = sprintf('%.2f', v);
+    else
+        s = sprintf('%.1f', v);
+    end
 end
 
 function s = commaInt(v)
     s = regexprep(sprintf('%d', round(v)), '(\d)(?=(\d{3})+$)', '$1,');
-end
-
-function col = mix(col, w)
-% Blend a colour toward white by fraction w (0 = unchanged, 1 = white)
-    col = col + (1 - col) * w;
-end
-
-function fn = pickFont(want)
-    if any(strcmpi(listfonts, want))
-        fn = want;
-    else
-        fn = 'Helvetica';
-        warning('plotPpa:font', 'Font "%s" not installed; using %s. Install IBM Plex Sans for the poster.', want, fn);
-    end
-end
-
-function exportFig(fig, outDir, name)
-    exportgraphics(fig, fullfile(outDir, [name '.pdf']), 'ContentType', 'vector', 'BackgroundColor', 'white');
-    exportgraphics(fig, fullfile(outDir, [name '.png']), 'Resolution', 300, 'BackgroundColor', 'white');
-    fprintf('  wrote %s (.pdf, .png)\n', name);
 end

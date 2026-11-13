@@ -81,6 +81,7 @@ function cfg = config()
     cfg.selftest.showPlot  = true;
 
     % --- Stage 09: PPA report and poster figures (added with Claude, Anthropic) ---
+    % Data settings only; how the charts look is set in cfg.poster below.
     % Inputs are the summary CSVs written by fpga/scripts/run_fpga_ppa.tcl and
     % asic/scripts/run_asic_ppa.py. The ASIC sweep runs in WSL, so copy its
     % asic_ppa_summary.csv into data/ppa_reports/asic/ before running stage 09.
@@ -90,27 +91,51 @@ function cfg = config()
     cfg.ppa.clocksPerSample = [64 35 20 13 9];  % measured in FIR_Core_Mac_tb (sample_valid -> out_valid)
     cfg.ppa.fpgaVariant     = 'dsp';            % FPGA build shown on the poster ('dsp' or 'nodsp')
     cfg.ppa.refPeriodNs     = 40;               % 25 MHz operating point: area and power are taken here
-    cfg.ppa.asicFailedLanes = 8;                % ASIC lane counts that did not route (marked on figures)
+    cfg.ppa.asicFailedLanes = 8;                % ASIC lane counts that did not route (marked "did not route" on the charts)
     cfg.ppa.requiredMsps    = cfg.fs / 1e6;     % sample-rate requirement (0.096 MS/s)
-    cfg.ppa.colors.fpga  = [15 139 141] / 255;  % teal   #0F8B8D
-    cfg.ppa.colors.asic  = [200 105 44] / 255;  % copper #C8692C
-    cfg.ppa.colors.navy  = [14 27 44] / 255;    % navy   #0E1B2C
-    cfg.ppa.colors.text  = [31 35 40] / 255;    % charcoal #1F2328
-    cfg.ppa.colors.muted = [90 98 112] / 255;   % slate  #5A6270
-    cfg.ppa.colors.grid  = [208 213 219] / 255; % light grey #D0D5DB
-    cfg.ppa.font            = 'IBM Plex Sans';  % falls back to Helvetica if not installed
-    cfg.ppa.fontSize        = 24;               % pt: tick labels, axis labels (poster minimum)
-    cfg.ppa.titleFontSize   = 28;               % pt: figure title (the finding)
-    cfg.ppa.keyFontSize     = 20;               % pt: colour key, value labels, requirement line
-    cfg.ppa.captionFontSize = 20;               % pt: caption under each figure
-    cfg.ppa.titleIn         = 0.95;             % in: band for the title (fits two lines)
-    cfg.ppa.captionIn       = 0.9;              % in: band for the caption (fits two to three lines)
-    % Figure sizes in inches at print size [width height]; titles and captions wrap to the width
-    cfg.ppa.figSize.area      = [12.5 5.25];    % Fig. 6, centre column (two panels)
-    cfg.ppa.figSize.speed     = [12.5 5.25];    % Fig. 7, centre column
-    cfg.ppa.figSize.energy    = [8.5 4.3];      % Fig. 8, right column
-    cfg.ppa.figSize.power     = [8.5 4.0];      % Fig. 9, right column
-    cfg.ppa.figSize.areaSplit = [8.5 4.0];      % Fig. 10, right column
+
+    % --- Poster charts: one look for every chart (added with Claude, Anthropic) ---
+    % Used by lib/plot/posterKit.m, plotPpa.m and plotFilterPoster.m. The poster canvas is
+    % 3456 x 2304 px for 36 x 24 in, so 96 px = 1 in and a chart drawn at its slot size in
+    % inches prints with real point sizes. Charts carry no title or caption (the poster
+    % card supplies both); they are exported as PNG at exactly figSize x exportDpi.
+    cfg.poster.pxPerIn       = 96;                 % poster canvas pixels per printed inch
+    cfg.poster.exportDpi     = 600;                % PNG resolution (a 7.15 in chart is 4290 px wide)
+    cfg.poster.font          = 'IBM Plex Sans';    % poster typeface; falls back to Helvetica with a warning
+    cfg.poster.fontSize      = 17;                 % pt: axis numbers, axis titles, header, colour key
+    cfg.poster.valueFontSize = 16;                 % pt: values printed at points and bar tops
+    cfg.poster.noteFontSize  = 15;                 % pt: small notes ("did not route") and the in-plot key
+    cfg.poster.colors.fpga      = [15 139 141] / 255;    % teal   #0F8B8D
+    cfg.poster.colors.fpgaLight = [147 203 204] / 255;   % light teal #93CBCC (FPGA static power)
+    cfg.poster.colors.asic      = [200 105 44] / 255;    % copper #C8692C
+    cfg.poster.colors.asicLight = [228 180 149] / 255;   % light copper #E4B495 (ASIC buffer cells)
+    cfg.poster.colors.navy      = [14 27 44] / 255;      % navy   #0E1B2C
+    cfg.poster.colors.text      = [31 35 40] / 255;      % charcoal #1F2328
+    cfg.poster.colors.muted     = [90 98 112] / 255;     % slate  #5A6270
+    cfg.poster.colors.grid      = [208 213 219] / 255;   % light grey #D0D5DB
+    cfg.poster.colors.channels  = {[14 27 44] / 255, [62 106 154] / 255, [143 179 217] / 255};   % ch 1-3: navy, steel, light blue
+    cfg.poster.lineWidth     = 2.5;                % pt: data lines
+    cfg.poster.markerSize    = 9;                  % pt: data markers
+    cfg.poster.barWidth      = 0.58;               % single bars, as a fraction of one lane slot
+    cfg.poster.pairBarWidth  = 0.36;               % each bar of an FPGA/ASIC pair
+    cfg.poster.pairOffset    = 0.20;               % pair bars sit this far either side of the lane position
+    % Figure sizes [width height] in inches = slot on the poster / 96
+    cfg.poster.figSize.result = [7.15 2.75];       % Figs. 6-9: 686 x 264 px chart area of a centre-grid card
+    cfg.poster.figSize.filter = [7.85 3.00];       % Fig. 1: 756 px wide left-column card (image height follows)
+    % Margins around the plot area, inches
+    cfg.poster.headIn        = 0.40;               % header row above the plot (what is plotted + colour key)
+    cfg.poster.botIn         = 0.74;               % below the plot: axis numbers and axis title
+    cfg.poster.leftIn        = 0.55;               % left of the plot: room for three-character axis numbers
+    cfg.poster.rightIn       = 0.06;
+    cfg.poster.headerXIn     = 0.04;               % header text starts here (left edge of the image)
+    cfg.poster.xTitleDropIn  = 0.62;               % axis title baseline below the axis line
+    cfg.poster.barLabelGapIn  = 0.05;              % gap between a bar top and its value
+    cfg.poster.lineLabelGapIn = 0.10;              % gap between a marker centre and its value
+    cfg.poster.labelRoomIn   = 0.34;               % headroom kept above the tallest mark for its value
+    cfg.poster.swatchIn      = 0.17;               % colour-key sample size
+    cfg.poster.keyTextGapIn  = 0.12;               % sample to its label
+    cfg.poster.keyItemGapIn  = 0.28;               % between key entries in a row
+    cfg.poster.keyRowPitchIn = 0.27;               % between key rows in a column
 
     % --- Which stages run_all executes ---
     cfg.run.tapStudy      = false;

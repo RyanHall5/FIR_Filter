@@ -64,11 +64,11 @@ for i = 1:numel(coeffs)
     names{i} = sprintf('Channel %d (%g kHz)', i, cfg.fc(i) / 1e3);
 end
 % Standard MATLAB look with the poster's channel colours (navy shades), x axis in kHz
-% with the band edges dashed; also exported for the poster (added with Claude, Anthropic)
+% with the band edges dashed. This is the on-screen check; the poster's Fig. 1 is drawn
+% by stage 09 (lib/plot/plotFilterPoster.m). (Edited with Claude, Anthropic.)
 bands    = channelBands(cfg);
 respOpts = struct('nfft', 16384, 'kHz', true, 'ylim', [-100 5], 'edgesHz', unique([bands.f]), ...
-                  'colors', {{[14 27 44] / 255, [62 106 154] / 255, [143 179 217] / 255}}, ...
-                  'exportBase', fullfile(cfg.resultsDir, '08_visualize', 'fig01_filter_responses'));
+                  'colors', {{[14 27 44] / 255, [62 106 154] / 255, [143 179 217] / 255}});
 plotFilterResponses(coeffs, names, cfg.fs, 'Channel-select FIR filter frequency responses', respOpts);
 
 % =========================================================================
