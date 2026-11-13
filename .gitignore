@@ -5,6 +5,12 @@ matlab/data/**
 !matlab/data/**/.gitkeep
 # Golden-model vectors are the contract with the Verilog testbenches: keep them.
 # (They are force-tracked; see README.)
+# Results that take hours to collect are tracked so they are backed up on GitHub
+# (small text and .mat files; a plain `git add matlab/data` picks them up):
+!matlab/data/ppa_reports/**
+!matlab/data/coefficients/**
+!matlab/data/results/01_tap_study/**
+!matlab/data/results/09_ppa_report/**
 *.asv
 *.autosave
 slprj/
@@ -47,7 +53,14 @@ Thumbs.db
 /.metadata/
 
 # ---------- LibreLane (asic/) ----------
-asic/*/runs/
+# Full LibreLane runs (GDS, DEF, ODB, logs) are too large for git: back them up elsewhere.
+# Each run's results are kept: final/metrics.json (every PPA number), ppa_meta.json
+# (git commit of the RTL) and resolved.json (the exact flow configuration).
+asic/*/runs/**
+!asic/*/runs/**/
+!asic/*/runs/*/final/metrics.json
+!asic/*/runs/*/ppa_meta.json
+!asic/*/runs/*/resolved.json
 asic/*/config_*ns.json
 
 # ---------- Editor backups (History/ and __Previews/ folders) ----------
