@@ -230,7 +230,7 @@ end
 function asicEndNote(kit, ax, n, yAsic, failLanes)
 % Where the ASIC line stops short: say why, at the right edge, hanging from the level of its last point
     if isempty(failLanes) || isempty(yAsic), return; end
-    kit.note(ax, n + 0.45, yAsic(end), {sprintf('ASIC: %d lanes', failLanes(1)), 'did not route'}, ...
+    kit.note(ax, n + 0.45, yAsic(end), {sprintf('ASIC: %d+ lanes', failLanes(1)), 'did not route'}, ...
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'top');
 end
 
